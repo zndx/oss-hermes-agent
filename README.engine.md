@@ -11,6 +11,7 @@ face; Nautilus instance follows Gaius (read-only adoption only).
 | capability | **`agent`** |
 | gRPC | `:50651` (native `hermes.engine` + `zndx.engine.v1.Engine` + OIP) |
 | advertised UI (`Status.surfaces`) | `http://tinybox.dev.vista.zndx.org:9119` (`HERMES_ADVERTISE_HOST` / `HERMES_PRIMARY_UI`) |
+| dashboard bind | `0.0.0.0:9119` (LAN `192.168.1.55` + WARP; basic auth via secretspec) |
 | federation peers | gaius `:50051` (`thinking`) · aegir `:50151` (`instruct`) |
 | Nautilus instance | `config/supervision/hermes.textproto` (observe-only; Gaius leads the supervisor) |
 
@@ -33,9 +34,15 @@ lattice evolves. `tests/engine/test_surface_extras.py` is the tripwire.
 # Canonical venv is devenv-managed: .devenv/state/venv (not a uv-downloaded .venv).
 devenv tasks run devenv:python:uv    # uv sync --frozen --extra signals
 ./scripts/compile_engine_protos.sh   # after proto edits
-python -m hsengine                   # or: devenv up  (processes.engine)
+python -m hsengine                   # or: devenv up  (engine + dashboard)
 python scripts/hermes_status_ok.py   # accept: Engine/Status project=hermes
+secretspec set HERMES_DASHBOARD_BASIC_AUTH_PASSWORD
+devenv up                            # :50651 engine + :9119 dashboard
 ```
+
+Federated-menu listing on the Signals hub still needs the hub roster
+(`hermes: 50651`). That change is **not** in this tree — see
+[`docs/local/signals-hub-peer-hermes.md`](docs/local/signals-hub-peer-hermes.md).
 
 Accept probes:
 

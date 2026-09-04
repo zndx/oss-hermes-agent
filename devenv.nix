@@ -41,7 +41,7 @@
     ffmpeg
     portaudio
     grpcurl
-  ];
+  ] ++ lib.optional (pkgs ? secretspec) pkgs.secretspec;
 
   # https://devenv.sh/basics/
   env = {
@@ -76,6 +76,28 @@
     };
   };
 
+  # Product dashboard — LAN 0.0.0.0:9119 + WARP hostname in public_url.
+  # Auth gate is mandatory off-loopback (secretspec password).
+  processes.dashboard = {
+    exec = ''
+      cd ${config.devenv.root}
+      export HERMES_ADVERTISE_HOST="''${HERMES_ADVERTISE_HOST:-''${SIGNALS_ADVERTISE_HOST:-tinybox.dev.vista.zndx.org}}"
+      exec ${config.devenv.root}/scripts/processes/hermes-dashboard.sh
+    '';
+    process-compose = {
+      readiness_probe = {
+        exec.command = ''
+          ${config.devenv.root}/.devenv/state/venv/bin/python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:9119/api/health', timeout=3)"
+        '';
+        initial_delay_seconds = 15;
+        period_seconds = 10;
+        timeout_seconds = 5;
+        success_threshold = 1;
+        failure_threshold = 60;
+      };
+    };
+  };
+
   # https://devenv.sh/scripts/
   #
   # Browser tools are optional and pull a large browser bundle, so this stays
@@ -91,6 +113,7 @@
     echo "  hermes                 interactive CLI"
     echo "  hermes version         version / environment info"
     echo "  python -m hsengine     signals lattice engine (:50651, project=hermes)"
+    echo "  hermes dashboard       web UI :9119 (LAN + WARP; secretspec auth)"
     echo "  venv                   ${config.devenv.state}/venv  (devenv:python:uv)"
     echo "  pytest tests/ -q       test suite"
     echo "  hermes-browser-tools   optional: npm browser tooling"
@@ -101,6 +124,7 @@
     hermes version
     python -c "import hermes_cli, run_agent, hsengine"
     python ${config.devenv.root}/tests/engine/test_surface_extras.py
+    python ${config.devenv.root}/tests/engine/test_dashboard_process.py
   '';
 
   # See full reference at https://devenv.sh/reference/options/

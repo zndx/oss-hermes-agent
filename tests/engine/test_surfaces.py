@@ -51,6 +51,14 @@ def test_default_advertise_host_is_the_lattice_host():
     assert surfaces.primary_ui_url() == "http://tinybox.dev.vista.zndx.org:9119"
 
 
+def test_primary_surface_is_the_federated_menu_url():
+    got = surfaces.local_surfaces(True)
+    primary = [s for s in got if s.kind == "primary"]
+    assert len(primary) == 1
+    assert primary[0].url == "http://tinybox.dev.vista.zndx.org:9119"
+    assert primary[0].healthy is True
+
+
 def test_primary_ui_override_rewrites_loopback(monkeypatch):
     monkeypatch.setenv("HERMES_ADVERTISE_HOST", "lattice.example.org")
     monkeypatch.setenv("HERMES_PRIMARY_UI", "http://127.0.0.1:9119/")
