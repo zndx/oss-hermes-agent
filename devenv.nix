@@ -29,19 +29,31 @@
     };
   };
 
+  # https://devenv.sh/languages/javascript/
+  # Dashboard + ui-tui require Node ^22.22 (package.json engines). Do not
+  # put nodejs_* in packages — devenv owns the runtime and npm on PATH.
+  # npm.install.enable stays off: the workspace includes Electron desktop.
+  languages.javascript = {
+    enable = true;
+    package = pkgs.nodejs_22;
+    npm.enable = true;
+  };
+
   # https://devenv.sh/packages/
   #
   # Binaries the agent shells out to at runtime (mirrors nix/packages.nix),
   # plus portaudio for the `voice` extra's sounddevice bindings.
   packages = with pkgs; [
     git
-    nodejs_20
     ripgrep
     openssh
     ffmpeg
     portaudio
     grpcurl
   ] ++ lib.optional (pkgs ? secretspec) pkgs.secretspec;
+
+  # Gitignored `.env` is the secretspec dotenv store (dashboard auth).
+  dotenv.enable = true;
 
   # https://devenv.sh/basics/
   env = {
@@ -114,6 +126,7 @@
     echo "  hermes version         version / environment info"
     echo "  python -m hsengine     signals lattice engine (:50651, project=hermes)"
     echo "  hermes dashboard       web UI :9119 (LAN + WARP; secretspec auth)"
+    echo "  node/npm               $(node --version 2>/dev/null || echo missing) / $(npm --version 2>/dev/null || echo missing)"
     echo "  venv                   ${config.devenv.state}/venv  (devenv:python:uv)"
     echo "  pytest tests/ -q       test suite"
     echo "  hermes-browser-tools   optional: npm browser tooling"

@@ -21,6 +21,7 @@ class DashboardProcessTests(unittest.TestCase):
         env.pop("HERMES_DASHBOARD_BASIC_AUTH_PASSWORD", None)
         env.pop("HERMES_DASHBOARD_BASIC_AUTH_PASSWORD_HASH", None)
         env["HERMES_DASHBOARD_BASIC_AUTH_USERNAME"] = "hermes"
+        env["HERMES_DASHBOARD_IGNORE_DOTENV"] = "1"
         proc = subprocess.run(
             [str(SCRIPT)],
             cwd=str(ROOT),
