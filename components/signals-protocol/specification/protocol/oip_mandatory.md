@@ -48,6 +48,29 @@ Parameters (temperature, max_tokens, capability→model routing hints) ride
 Capability names from `zndx.engine.v1` resolve **inside the engine** to a local
 backend or to an OIP `model_name` on a peer — never as a requirement on CIS.
 
+### `llm_tools_v1` (additive, 2026-09-04)
+
+OpenAI-shaped tool loops on the **same** OIP messages. Do not fork the OIP
+proto. Advertise `ServerMetadata.extensions += ["llm_tools_v1"]`. Send the
+extra tensors **only** to peers that advertise that extension — vanilla CIS
+/ KServe often `INVALID_ARGUMENT` on unknown inputs.
+
+| Tensor / param | Direction | payload |
+|----------------|-----------|---------|
+| `tools` | input BYTES | OpenAI `tools[]` JSON |
+| `messages` | input BYTES | OpenAI `messages[]` JSON (tool loop). When set, it replaces `prompt`/`system_prompt` for message construction (same rule as `CompleteRequest.messages_json`). |
+| `tool_choice` | `parameters` string | `auto` / `required` / `none` / named-tool JSON. Empty = `auto` when `tools` is present. |
+| `tool_calls` | output BYTES | JSON array of `{id,name,arguments}` (same fields as `zndx.engine.v1.ToolCall`) |
+| `finish_reason` | `parameters` string | `stop` / `tool_calls` / `length` |
+
+`ModelStreamInfer`: optional `tool_calls_delta` BYTES, prefix-stable; the
+final frame still carries the full `tool_calls` tensor. Empty `tools` is
+text-only (honest). `tools` and guided `json_schema` stay mutually
+exclusive. Method capabilities (`cot_reasoning`, …) stay NOMIX with tools.
+
+`zndx.engine.v1.Complete` (`tools_json` / `messages_json` / `ToolCall`)
+MUST lower to these tensors when the peer advertises `llm_tools_v1`.
+
 ## Proxy rules
 
 When `protocol = kserve` (or equivalent) for a peer:

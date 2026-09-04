@@ -115,6 +115,19 @@ port, fights OIP-mandatory and “no peer-private model HTTP.”
 
 Duplicates Complete. Grows the waist. Complete already has the messages.
 
+## Hermes plugins (perihelion)
+
+Do **not** grow core (`run_agent.py`, toolsets). Three stock plugin kinds:
+
+| Kind | Location | Seam |
+|------|----------|------|
+| Model | `hsengine/plugins/signals_oip` + bundled shim `plugins/model-providers/signals` | `ProviderProfile.create_client` → OpenAI-shaped client; OIP `llm_tools_v1` else Complete |
+| Memory | `hsengine/plugins/signals_memory` installed to `$HERMES_HOME/plugins/signals-memory` | `MemoryProvider` (`sync_turn`, `prefetch`, `on_pre_compress`). **Not** under repo `plugins/memory/` (that set is closed). |
+| Compaction | `hsengine/plugins/signals_compact` + bundled shim `plugins/context_engine/signals` | `ContextEngine` named `signals` (`context.engine: signals`). Subclasses `ContextCompressor` in v1. |
+
+Activate: `model.provider: signals`, `memory.provider: signals`, `context.engine: signals`.
+`python -m hsengine.plugins.install` (devenv enterShell) copies memory into the profile home.
+
 ## Recommendation
 
 | horizon | work |

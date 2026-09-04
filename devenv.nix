@@ -130,6 +130,7 @@
     echo "  venv                   ${config.devenv.state}/venv  (devenv:python:uv)"
     echo "  pytest tests/ -q       test suite"
     echo "  hermes-browser-tools   optional: npm browser tooling"
+    python -m hsengine.plugins.install >/dev/null 2>&1 || true
   '';
 
   # https://devenv.sh/tests/
