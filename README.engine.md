@@ -41,9 +41,10 @@ devenv up                            # :50651 engine + :9119 dashboard
 ```
 
 The Federated menu **is** `Engine/Status.surfaces` (`kind=primary`). Hermes
-already sends that. v1 discovery is pull-from-seeds, not a push join, so
-the Signals hub still needs `:50651` on its PEERS roster (or a later
-`Announce` RPC). Spec:
+sends that and **joins** by `Engine/Announce` to directory seeds
+(`SIGNALS_ENGINE_TARGET` and `federation.peers`, typically Ægir `:50151`).
+Launchers stay pull-only: they walk `ServerQuery PEERS` then Status.
+`UNIMPLEMENTED` on a seed is honest. Spec:
 [`docs/local/signals-hub-peer-hermes.md`](docs/local/signals-hub-peer-hermes.md).
 
 Accept probes:

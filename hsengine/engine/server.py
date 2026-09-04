@@ -19,6 +19,7 @@ from grpc_reflection.v1alpha import reflection
 
 import hsengine
 from hsengine.config import get_int, get_str
+from hsengine.engine import announce
 from hsengine.engine import complete as complete_svc
 from hsengine.engine import federation, lineage, oip_servicer, probe, s2s, surfaces
 from hsengine.engine.generated import hermes_engine_pb2 as pb
@@ -206,6 +207,14 @@ class ZndxEngineServicer(zpb_grpc.EngineServicer):
         )
         return zpb.RemediationResponse()
 
+    async def Announce(self, request, context):
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details(
+            "Announce directory is served by Ægir (and later the Signals hub). "
+            "Hermes is a joining peer, not a roster."
+        )
+        return zpb.AnnounceAck()
+
     async def WatchWorkload(self, request, context):
         generation = 0
         while not context.cancelled():
@@ -255,7 +264,21 @@ async def serve() -> None:
         [s.url for s in surfaces.local_surfaces(True) if s.kind == surfaces.SURFACE_PRIMARY],
         federation.federation_peers(),
     )
-    await server.wait_for_termination()
+
+    async def _announce_loop() -> None:
+        interval = max(15, announce.announce_ttl_s() // 3)
+        while True:
+            try:
+                await asyncio.to_thread(announce.announce_all)
+            except Exception:
+                log.exception("Announce heartbeat failed")
+            await asyncio.sleep(interval)
+
+    hb = asyncio.create_task(_announce_loop(), name="hsengine-announce")
+    try:
+        await server.wait_for_termination()
+    finally:
+        hb.cancel()
 
 
 def main() -> None:

@@ -37,28 +37,20 @@ directory write. Discovery is pull:
 3. One-hop `ServerQuery PEERS` on whoever answered; Status those too.
 
 Serving the Engine face (“joining the workspace”) does not insert Hermes
-into the hub’s PEERS set. Until a seed lists `:50651`, launchers never
-call `Status` on us, so they never see the surface we already advertise.
+into anyone’s PEERS set by itself. Launchers never call `Status` on
+`:50651` until some seed lists that target.
 
-**Now (no protocol change):** add Hermes to the Signals hub roster
-(`engine_grpc_lattice.hermes = 50651`). That is config in `wxs/signals`,
-not waffle chrome. Spec below.
+**Join (shipped):** `Engine/Announce(PeerAnnounce)` — Hermes pushes
+`project=hermes` + `engine_target=<advertise-host>:50651` to directory
+seeds (`SIGNALS_ENGINE_TARGET` and `federation.peers`). Ægir implements
+the directory: it TTL-remembers the hint and returns it on
+`ServerQuery PEERS`. Launchers (Ægir waffle, Gaius) stay pull-only and
+walk PEERS. Signals hub may still `UNIMPLEMENTED` until it adopts the
+RPC — that is honest; the next seed (Ægir `:50151`) is enough.
 
-**Enhancement (additive v1, later):** a join so an external engine can
-*push* a `PeerHint` (+ optional surfaces) to the hub, TTL’d, and show up
-in `ServerQuery PEERS` without a contract edit. Sketch:
-
-- New RPC on `zndx.engine.v1.Engine`, e.g. `Announce(PeerAnnounce) returns (Ack)`
-  — or a new `ServerQuery` kind the **caller** is not the right shape for
-  (ServerQuery is “tell me about you”, not “remember me”).
-- `PeerAnnounce`: `project`, `engine_target` (`host:port`), `surfaces[]`
-  (same `Surface` messages), `ttl_seconds`.
-- Hub records the hint; `PEERS` includes it until TTL or a later Status
-  miss. Honest empty if the hub does not implement Announce (`UNIMPLEMENTED`).
-- Hermes would `Announce` to `SIGNALS_ENGINE_TARGET` at engine start
-  (and heartbeat). Launchers stay pull-only.
-
-Until Announce exists, the contract row is the join.
+**Optional hub roster:** adding `"hermes": 50651` to Signals
+`engine_grpc_lattice` remains valid same-host config, not required for
+the waffle once Announce reaches a directory on the walk.
 
 ## Signals (`~/local/src/wxs/signals`)
 
