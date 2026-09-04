@@ -1,5 +1,0 @@
-name: signals
-kind: model-provider
-version: 0.1.0
-description: Signals lattice OIP (llm_tools_v1) with Complete fallback
-author: zndx

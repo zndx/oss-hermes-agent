@@ -115,18 +115,22 @@ port, fights OIP-mandatory and “no peer-private model HTTP.”
 
 Duplicates Complete. Grows the waist. Complete already has the messages.
 
-## Hermes plugins (perihelion)
+## Hermes plugins (standalone repo)
 
-Do **not** grow core (`run_agent.py`, toolsets). Three stock plugin kinds:
+Do **not** grow core (`run_agent.py`, toolsets) or in-tree `plugins/memory/`.
+The three plugins live in `~/local/src/wxs/signals-plugins` and install like
+rtk / hermes-lcm:
 
-| Kind | Location | Seam |
-|------|----------|------|
-| Model | `hsengine/plugins/signals_oip` + bundled shim `plugins/model-providers/signals` | `ProviderProfile.create_client` → OpenAI-shaped client; OIP `llm_tools_v1` else Complete |
-| Memory | `hsengine/plugins/signals_memory` installed to `$HERMES_HOME/plugins/signals-memory` | `MemoryProvider` (`sync_turn`, `prefetch`, `on_pre_compress`). **Not** under repo `plugins/memory/` (that set is closed). |
-| Compaction | `hsengine/plugins/signals_compact` + bundled shim `plugins/context_engine/signals` | `ContextEngine` named `signals` (`context.engine: signals`). Subclasses `ContextCompressor` in v1. |
+```bash
+~/local/src/wxs/signals-plugins/scripts/install.sh
+# or: hermes plugins install file://$PWD#plugins/signals-oip
+```
 
-Activate: `model.provider: signals`, `memory.provider: signals`, `context.engine: signals`.
-`python -m hsengine.plugins.install` (devenv enterShell) copies memory into the profile home.
+| Plugin | Hermes kind | Activate |
+|--------|-------------|----------|
+| `signals-oip` | model-provider (`create_client`) | `model.provider: signals` |
+| `signals-memory` | `MemoryProvider` | `memory.provider: signals-memory` |
+| `signals-compact` | `ContextEngine` via `register(ctx)` | `context.engine: signals` |
 
 ## Recommendation
 
@@ -134,7 +138,7 @@ Activate: `model.provider: signals`, `memory.provider: signals`, `context.engine
 |---------|------|
 | Protocol | **A** in `oip_mandatory.md` + `llm_tools_v1` extension string |
 | Gaius | OIP `ModelInfer`/`ModelStreamInfer` accept `tools`/`messages`, reuse the Complete vLLM extra_body path, emit `tool_calls` tensor; `ServerMetadata.extensions` |
-| Hermes client | Prefer OIP when the peer advertises `llm_tools_v1`; else Complete (C) until Gaius OIP catches up. Thread tools through `complete` / `CompleteResult` |
+| Hermes client | Standalone `signals-plugins` (`signals-oip`): prefer OIP when the peer advertises `llm_tools_v1`; else Complete (C) |
 | Inbound Hermes | Keep **D** as the default for foreign Complete/OIP callers (`agent` = opaque). Do not dump the Hermes tool schema onto every lattice Complete |
 
 Constraints to keep:
