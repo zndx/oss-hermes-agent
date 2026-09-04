@@ -1,0 +1,39 @@
+// hermes native engine surface.
+//
+// The shared federation face is zndx.engine.v1.Engine, vendored at
+// components/signals-protocol — serve() registers BOTH (plus OIP) on one port
+// (:50651 per the engine lattice).
+//
+// Federation capability name is "agent" (not "hermes") so peers depend on an
+// ability, not an implementation. Status.project is "hermes".
+//
+// Change ritual: edit → scripts/compile_engine_protos.sh → implement the
+// servicer → commit hsengine/engine/generated/.
+syntax = "proto3";
+
+package hermes.engine;
+
+service HermesEngine {
+  // Liveness/capability report; mirrors the metabase/synth EngineStatus shape.
+  rpc EngineStatus(EngineStatusRequest) returns (EngineStatusReply);
+  // Resolve the live agent/dashboard instance for local tooling.
+  // Non-secret discovery only — passwords and API keys never appear here.
+  rpc GetAgentInstance(GetAgentInstanceRequest) returns (GetAgentInstanceReply);
+}
+
+message EngineStatusRequest {}
+
+message EngineStatusReply {
+  string project = 1;               // always "hermes"
+  string version = 2;
+  repeated string capabilities = 3; // includes "agent" when the lattice face is up
+}
+
+message GetAgentInstanceRequest {}
+
+message GetAgentInstanceReply {
+  bool healthy = 1;
+  string dashboard_url = 2;  // e.g. http://127.0.0.1:9119
+  string gateway_url = 3;    // e.g. http://127.0.0.1:8642
+  string detail = 4;         // human-legible probe note
+}

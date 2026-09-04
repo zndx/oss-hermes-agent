@@ -1,0 +1,58 @@
+# proto-file: zndx/supervision/v1/supervision.proto
+# proto-message: zndx.supervision.v1.Supervisor
+#
+# Hermes supervision instance — follow-only of Gaius (nautilus_supervision.md §9
+# read-only adoption). Every restart strategy is NONE: observe, stamp, score,
+# escalate — never actuate — until the external Nautilus binary's own Brier
+# record earns promotion. Do not clone Gaius's in-engine NautilusService.
+
+project: "hermes"
+spec_version: "2026-09-04.1"
+engine_build: "rch/devenv"
+engine_grpc: "127.0.0.1:50651"
+
+budgets {
+  recycle_k: 3
+  recycle_window_seconds: 3600
+  recycle_cooldown_seconds: 240
+  judge_consults_per_day: 2
+  rubric_judgments_per_day: 2
+}
+
+processes {
+  id: "hermes.service"
+  kind: PROCESS_KIND_SYSTEMD_UNIT
+  restart: RESTART_STRATEGY_NONE
+  observation { source: SOURCE_KIND_SYSTEMD locator: "hermes.service" poll_seconds: 15 }
+  warmup_seconds: 30
+  attrs { key: "control_plane" value: "systemd oneshot -> devenv up (process-compose)" }
+}
+processes {
+  id: "engine"
+  kind: PROCESS_KIND_EXTERNAL_SERVICE
+  parent: "hermes.service"
+  restart: RESTART_STRATEGY_NONE
+  observation { source: SOURCE_KIND_ENGINE_GRPC locator: "127.0.0.1:50651" poll_seconds: 0 }
+  warmup_seconds: 15
+  reports_positions: true
+  depends_on: "hermes.service"
+  attrs { key: "capability" value: "agent" }
+}
+processes {
+  id: "dashboard"
+  kind: PROCESS_KIND_EXTERNAL_SERVICE
+  parent: "hermes.service"
+  restart: RESTART_STRATEGY_NONE
+  observation { source: SOURCE_KIND_HTTP_PROBE locator: "http://127.0.0.1:9119/api/health" poll_seconds: 30 }
+  warmup_seconds: 15
+  attrs { key: "note" value: "hermes dashboard; empty surfaces if the UI is down is honest" }
+}
+processes {
+  id: "gateway"
+  kind: PROCESS_KIND_EXTERNAL_SERVICE
+  parent: "hermes.service"
+  restart: RESTART_STRATEGY_NONE
+  observation { source: SOURCE_KIND_HTTP_PROBE locator: "http://127.0.0.1:8642/health" poll_seconds: 30 }
+  warmup_seconds: 15
+  attrs { key: "note" value: "optional messaging gateway; miss is not an engine failure" }
+}

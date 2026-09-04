@@ -18,7 +18,7 @@
         # `all` covers every extra except `matrix` (upstream python-olm is
         # broken) and the `rl` / `yc-bench` git deps. It includes `dev`, so
         # pytest is available too.
-        extras = [ "all" ];
+        extras = [ "all" "engine" ];
         # devenv defaults to `--no-install-workspace`, which syncs the
         # dependencies but skips hermes-agent itself — no `hermes` on PATH.
         arguments = [ "--frozen" ];
@@ -37,12 +37,38 @@
     openssh
     ffmpeg
     portaudio
+    grpcurl
   ];
 
   # https://devenv.sh/basics/
   env = {
     # Use the nixpkgs interpreter above; never let uv fetch its own CPython.
     UV_PYTHON_DOWNLOADS = "never";
+    SIGNALS_ENGINE_TARGET = "127.0.0.1:50551";
+    HERMES_ENGINE_TARGET = "127.0.0.1:50651";
+  };
+
+  # Lattice engine — join as project=hermes, capability=agent on :50651.
+  # Readiness is Engine/Status (same accept gate as gaius/metabase).
+  processes.engine = {
+    exec = ''
+      cd ${config.devenv.root}
+      export HERMES_ADVERTISE_HOST="''${HERMES_ADVERTISE_HOST:-''${SIGNALS_ADVERTISE_HOST:-tinybox.dev.vista.zndx.org}}"
+      exec python -m hsengine
+    '';
+    process-compose = {
+      readiness_probe = {
+        exec.command = ''
+          python ${config.devenv.root}/scripts/hermes_status_ok.py \
+            || grpcurl -plaintext -max-time 2 127.0.0.1:50651 zndx.engine.v1.Engine/Status
+        '';
+        initial_delay_seconds = 2;
+        period_seconds = 5;
+        timeout_seconds = 4;
+        success_threshold = 1;
+        failure_threshold = 36;
+      };
+    };
   };
 
   # https://devenv.sh/scripts/
@@ -59,6 +85,7 @@
     echo "Hermes Agent dev shell (python $(python --version | cut -d' ' -f2))"
     echo "  hermes                 interactive CLI"
     echo "  hermes version         version / environment info"
+    echo "  python -m hsengine     signals lattice engine (:50651, project=hermes)"
     echo "  pytest tests/ -q       test suite"
     echo "  hermes-browser-tools   optional: npm browser tooling"
   '';

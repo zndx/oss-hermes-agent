@@ -1,0 +1,16 @@
+"""Nautilus follow-only: the Hermes instance exists and names project=hermes."""
+from __future__ import annotations
+
+from pathlib import Path
+
+from hsengine.engine.supervision_spec import instance_exists, instance_path
+
+
+def test_instance_is_checked_in():
+    path = instance_path()
+    assert instance_exists()
+    text = Path(path).read_text()
+    assert 'project: "hermes"' in text
+    assert "127.0.0.1:50651" in text
+    assert "RESTART_STRATEGY_NONE" in text
+    assert "PROCESS_KIND_ENGINE" not in text or "engine" in text
