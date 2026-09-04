@@ -10,5 +10,6 @@ upstream agent extra.
 from __future__ import annotations
 
 # Allowlisted uv extras for devenv.nix languages.python.uv.sync.extras.
-# Add a name here when (and only when) the local Signals stack grows one.
-LOCAL_EXTRAS = frozenset({"engine"})
+# `signals` composes the lattice engine + Nautilus. Do not list `engine`
+# here — it is an internal extra, not a devenv extra.
+LOCAL_EXTRAS = frozenset({"signals"})

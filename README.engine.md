@@ -22,7 +22,7 @@ sample systemd unit (when Signals adds `--peers hermes`) should
 
 The local venv is core upstream Hermes plus **Signals-owned extras only**.
 The Signals stack may grow extras (`hsengine.surface.LOCAL_EXTRAS`, today
-`engine`). Do **not** sync upstream Hermes extras (`[all]`, `web`,
+`signals` = lattice engine + Nautilus). Do **not** sync upstream Hermes extras (`[all]`, `web`,
 `google`, `youtube`, `mcp`, messaging, …) or activate in-tree plugins /
 `optional-skills` to make the agent “complete.” Hold that line as the
 lattice evolves. `tests/engine/test_surface_extras.py` is the tripwire.
@@ -31,7 +31,7 @@ lattice evolves. `tests/engine/test_surface_extras.py` is the tripwire.
 
 ```bash
 # Canonical venv is devenv-managed: .devenv/state/venv (not a uv-downloaded .venv).
-devenv tasks run devenv:python:uv    # uv sync --frozen --extra engine
+devenv tasks run devenv:python:uv    # uv sync --frozen --extra signals
 ./scripts/compile_engine_protos.sh   # after proto edits
 python -m hsengine                   # or: devenv up  (processes.engine)
 python scripts/hermes_status_ok.py   # accept: Engine/Status project=hermes

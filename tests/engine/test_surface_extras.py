@@ -61,6 +61,16 @@ class SurfaceExtrasTests(unittest.TestCase):
             "[project.optional-dependencies]",
         )
 
+    def test_signals_extra_includes_engine_and_nautilus(self) -> None:
+        data = tomllib.loads(PYPROJECT.read_text(encoding="utf-8"))
+        extras = (data.get("project") or {}).get("optional-dependencies") or {}
+        signals = list(extras.get("signals") or [])
+        self.assertIn("hermes-agent[engine]", signals)
+        self.assertTrue(
+            any("nautilus" in str(item) for item in signals),
+            f"signals extra must include nautilus, got {signals}",
+        )
+
     def test_upstream_all_does_not_swallow_local_extras(self) -> None:
         includes = _all_extra_includes()
         swallowed = [

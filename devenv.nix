@@ -20,7 +20,7 @@
         # Perihelion: core Hermes + Signals-owned extras only (see
         # hsengine.surface.LOCAL_EXTRAS). Never `[all]`, never upstream
         # extras/plugins. Expand LOCAL_EXTRAS when the lattice grows.
-        extras = [ "engine" ];
+        extras = [ "signals" ];
         allExtras = false;
         # devenv defaults to `--no-install-workspace`, which syncs the
         # dependencies but skips hermes-agent itself — no `hermes` on PATH.
