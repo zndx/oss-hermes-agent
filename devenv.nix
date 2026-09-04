@@ -9,16 +9,17 @@
   languages.python = {
     enable = true;
     package = pkgs.python311;
+    # Canonical local venv: $DEVENV_STATE/venv (.devenv/state/venv).
+    # Do not use a uv-downloaded .venv (UV_PYTHON_DOWNLOADS=never).
     venv.enable = true;
 
     uv = {
       enable = true;
       sync = {
         enable = true;
-        # `all` covers every extra except `matrix` (upstream python-olm is
-        # broken) and the `rl` / `yc-bench` git deps. It includes `dev`, so
-        # pytest is available too.
-        extras = [ "all" "engine" ];
+        # The local stack is `[all]` — lattice engine included there, not a
+        # separate devenv extra.
+        extras = [ "all" ];
         # devenv defaults to `--no-install-workspace`, which syncs the
         # dependencies but skips hermes-agent itself — no `hermes` on PATH.
         arguments = [ "--frozen" ];
@@ -54,12 +55,14 @@
     exec = ''
       cd ${config.devenv.root}
       export HERMES_ADVERTISE_HOST="''${HERMES_ADVERTISE_HOST:-''${SIGNALS_ADVERTISE_HOST:-tinybox.dev.vista.zndx.org}}"
-      exec python -m hsengine
+      # Nix profile PYTHONPATH must not leak into the engine (Gaius doctrine).
+      export PYTHONPATH=""
+      exec ${config.devenv.root}/.devenv/state/venv/bin/python -m hsengine
     '';
     process-compose = {
       readiness_probe = {
         exec.command = ''
-          python ${config.devenv.root}/scripts/hermes_status_ok.py \
+          ${config.devenv.root}/.devenv/state/venv/bin/python ${config.devenv.root}/scripts/hermes_status_ok.py \
             || grpcurl -plaintext -max-time 2 127.0.0.1:50651 zndx.engine.v1.Engine/Status
         '';
         initial_delay_seconds = 2;
@@ -86,6 +89,7 @@
     echo "  hermes                 interactive CLI"
     echo "  hermes version         version / environment info"
     echo "  python -m hsengine     signals lattice engine (:50651, project=hermes)"
+    echo "  venv                   ${config.devenv.state}/venv  (devenv:python:uv)"
     echo "  pytest tests/ -q       test suite"
     echo "  hermes-browser-tools   optional: npm browser tooling"
   '';

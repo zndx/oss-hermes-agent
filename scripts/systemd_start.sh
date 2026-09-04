@@ -11,9 +11,10 @@ if [[ "${1:-}" == "--help" ]]; then
 fi
 
 devenv up -d
+PY="$ROOT/.devenv/state/venv/bin/python"
 deadline=$((SECONDS + 90))
 while (( SECONDS < deadline )); do
-  if python "$ROOT/scripts/hermes_status_ok.py"; then
+  if [[ -x "$PY" ]] && "$PY" "$ROOT/scripts/hermes_status_ok.py"; then
     exit 0
   fi
   sleep 2
