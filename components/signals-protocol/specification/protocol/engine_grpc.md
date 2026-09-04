@@ -2,34 +2,20 @@
 
 ## Service
 
-`zndx.engine.v1.Engine` — registered by every signals engine **additionally**, beside
-its native project service and beside the **mandatory** OIP
-`inference.GRPCInferenceService` face.
-
-Insecure channels on the local fabric today; mTLS engine-to-engine when the
-federation identity layer lands (per Gaius FEDERATION.md).
-
-> **Federation lingua franca is OIP.**  
-> See [oip_mandatory.md](oip_mandatory.md). This package is a **capability /
-> remediation convenience face**, not a substitute for KServe Open Inference
-> Protocol. Engines that only implement `Complete` are **not** fully federated.
+`zndx.engine.v1.Engine` — registered by every signals engine ADDITIONALLY, beside its
+native project service. Insecure channels on the local fabric today; mTLS
+engine-to-engine when the federation identity layer lands (per Gaius FEDERATION.md).
 
 ## Complete
 
-> **DEPRECATED as the sole cross-engine inference path.**  
-> Implementations MUST lower `Complete` to OIP `ModelInfer` (and stream via
-> `ModelStreamInfer` when serving interactive clients). Plain KServe / CIS peers
-> speak OIP, not `Complete`.
-
-Request an inference **capability**. The engine resolves the capability to a model
-it manages (or to an OIP `model_name` on a peer) and serves the request; the caller
-of *this* RPC never addresses a model endpoint. OIP callers use `model_name` on
-`ModelInfer` instead.
+Request an inference **capability**. The engine resolves the capability to a model it
+manages (ensuring/loading it as needed) and serves the request internally; the caller
+never addresses a model endpoint.
 
 | field | semantics |
 |---|---|
-| `capability` | names an ability ("instruct", "metabot", "dashboard"); empty = engine default |
-| `prompt`, `system_prompt` | chat-style; map to OIP tensors `prompt` / `system_prompt` |
+| `capability` | names an ability ("instruct", "referee"); empty = the engine's default |
+| `prompt`, `system_prompt` | chat-style; system optional |
 | `max_tokens` | generous defaults recommended — reasoning models trace verbosely; `finish_reason: "length"` signals truncation |
 | `temperature` | sampling temperature |
 | `json_schema` | optional JSON Schema (string) → engine-enforced structured output (e.g. vLLM guided-json); empty = unconstrained |
@@ -48,12 +34,9 @@ tokens}` (model layer first when present) — and `fulfilled_by` (e.g.
 model layer keeps the method layer and the serving engine logs
 `#EP.00000021.METHODTRACE`. (added 2026-08-30)
 
-OIP lowering: `text` maps from the OIP `completion` tensor and `reasoning_content`
-from the OIP `reasoning` tensor (see [oip_mandatory.md](oip_mandatory.md)).
-
 Errors surface as gRPC status codes; the engine stays up (INTERNAL for serving
-failures, UNAVAILABLE while a capability is cold-loading if the engine chooses not
-to block).
+failures, UNAVAILABLE while a capability is cold-loading if the engine chooses not to
+block).
 
 ## Yield
 
@@ -108,7 +91,7 @@ epidemic gossip. Not CZMQ zgossip. Older engines: `UNIMPLEMENTED`.
 |------|---------|
 | `REMOTES` | named git remotes + advertised `head` |
 | `SCHEDULES` | pg_cron / Airflow hints |
-| `PEERS` | configured lattice Engine targets |
+| `PEERS` | configured lattice Engine targets **plus** live `Announce`d peers (TTL’d) |
 | `NOTE` | one FedWiki page (`WikiNote`) |
 | `SURFACES` | this engine's advertised `Surface` list |
 | `QUEUES` | `QueueHint[]` — **declared leaf shape** (path, max, default guarantee). Time-varying occupancy floors are `zndx.scheduler.v1.Scheduler/RequestQueueShare`, not this snapshot. Peers never call scheduler-backend REST. |
@@ -126,13 +109,31 @@ details (internal vLLM ports, log paths) stay absent.
 
 See [`surfaces.md`](surfaces.md) for the peer implementation note.
 
-Does **not** replace OIP `ServerLive` / `ServerReady` / `ModelReady`. Peers that
-need standard KServe probes use OIP health RPCs.
+## Announce
 
-## Remediate
+Additive v1. A joining engine **pushes** a `PeerHint` to a directory engine
+(typically the hub, or any peer that implements the RPC). Launchers stay
+pull-only: they never call `Announce`; they `ServerQuery PEERS` and
+`Status` those targets.
 
-Boundary-signal remediation (Holland CAS). Engine-local adaptive inference; the
-caller’s membrane disposes the correction. Not a substitute for OIP.
+| field | semantics |
+|---|---|
+| `project` | `Status.project` of the announcer (`hermes`, `metabase`, …) |
+| `engine_target` | lattice Engine `host:port` — never a UI URL, never invented |
+| `surfaces[]` | advisory copy of `Status.surfaces`; the directory still `Status`s `engine_target` for the waffle |
+| `ttl_seconds` | how long to keep the hint; `0` = directory default. Directory may clamp. |
+
+`AnnounceAck.accepted` is true only when the directory recorded the hint.
+`ttl_seconds` on the ack is the TTL it will actually keep. `error` is a
+guru string when refused (empty project/target, self-announce, …).
+
+Engines that are not a directory return `UNIMPLEMENTED` — honest, not a
+fault. The announcer heartbeats before expiry; a later `Status` miss on
+the target drops it from the waffle even if the TTL has not elapsed.
+
+Do not persist `Announce` into Atlas or any other lineage store. The
+roster is process-local and TTL’d. Re-announce after the directory
+restarts.
 
 ## RecordLineage
 
@@ -181,16 +182,17 @@ automation should prefer **generated clients** from the same protos engines use.
 
 ## Co-tenancy conventions (informative)
 
-Engines share hosts and GPUs. Advisory lease dir `/tmp/zndx-gpu-leases`;
-authoritative check is nvidia-smi. Foreign resident capabilities are respected —
-forward OIP (or Complete→OIP) rather than moving GPUs.
+Engines share one host and six GPUs today. The advisory lease layer is the shared lock
+dir `/tmp/zndx-gpu-leases` (per-GPU-set `filelock` files with project-tagged owner
+JSON); the authoritative check is each engine's nvidia-smi compute-process probe. A
+foreign engine's resident capability is respected — capability requests are FORWARDED
+over this protocol in preference to moving GPUs (model loads are expensive; requests
+are cheap).
 
-## OIP mapping (normative)
+## OIP mapping (horizon)
 
 | zndx.engine.v1 | Open Inference Protocol |
 |---|---|
-| `Complete` (deprecated as sole path) | **MUST** lower to `ModelInfer`; interactive paths **MUST** use `ModelStreamInfer` where applicable |
-| `Status` | complements `ServerMetadata` / `ModelReady` (capability+GPU view) |
-| capability names | resolved by the engine to local backend or peer `model_name` |
-
-Full rules: [oip_mandatory.md](oip_mandatory.md). Deprecations: [deprecations.md](deprecations.md).
+| `Complete` | no direct equivalent (chat-completion convenience); lowers to `ModelInfer` with a text tensor when bridging |
+| `Status` | `ServerMetadata` + `ModelReady` (approximately) |
+| capability names | model names resolved by the serving layer |

@@ -1,47 +1,32 @@
 # signals-protocol
 
-The shared wire contracts of the **zndx signals federation** — the protocols by which
-sibling projects' engines (Gaius, Ægir, Atelier, Metabase, Synth, …) invoke each other
-and **transparently proxy plain KServe Open Inference Protocol peers** (including
-Cloudera Inference Service).
-
-## Hard requirement (all adopters)
-
-**Every signals-protocol engine implementation MUST adopt full-duplex OIP:**
-
-| Obligation | Detail |
-|------------|--------|
-| OIP **server** face | `inference.GRPCInferenceService` — health, metadata, `ModelInfer`, **`ModelStreamInfer`** |
-| OIP **client** proxy | Call plain KServe/CIS with **only** OIP — no project-private RPCs on that hop |
-| Unary transparency | Unary-only OIP peers (CIS) remain first-class |
-| Full duplex | Bidi `ModelStreamInfer` on the engine face for interactive / multi-frame turns |
-| Deprecation | Vestigial alternatives marked `DEPRECATED` in code and docs — see below |
-
-Normative text: [`specification/protocol/oip_mandatory.md`](specification/protocol/oip_mandatory.md).
-
-Project-native streams (Gaius TUI streams, Metabase product HTTP, etc.) may remain for
-**local product UX** only. They are **not** federation.
+The shared wire contracts of the **zndx signals federation** — the protocols by which the
+sibling projects' engines (Ægir, Atelier, Gaius) invoke each other's capabilities while
+remaining independently operable. Patterned after the
+[KServe Open Inference Protocol](https://github.com/kserve/open-inference-protocol)
+repository: versioned proto packages + a specification document per protocol, evolved
+additively, adopted by reference (each project vendors this repo as a submodule and
+generates bindings from `proto/`).
 
 ## Why this exists
 
-Measured 2026-07-03: per-project engines mirrored message *shapes*, but gRPC method
-paths embed package+service, so foreign stubs got `UNIMPLEMENTED`. Each engine
-registers shared faces **additionally** beside native services.
-
-OIP is the **lingua franca** for heterogeneous serving (KServe, Triton, CIS, vLLM-OIP).
-`zndx.engine.v1` remains a capability/remediation **convenience** face that **lowers to
-OIP** — not a parallel federation.
+Measured 2026-07-03, minutes after the first live cross-engine call: the per-project
+engines mirror each other's message *shapes*, but gRPC method paths embed
+package+service — `aegir.engine.AegirEngine` vs `atelier.engine.AtelierEngine` — so a
+foreign stub gets `UNIMPLEMENTED` against a wire-identical peer. "Identical wire
+contract" requires an identical service path, not just identical messages. Each engine
+therefore registers the shared `zndx.engine.v1.Engine` service **additionally**, beside
+its native service: the native service remains the project-internal surface; the shared
+service is the federation face. One stub, any engine.
 
 ## Protocols
 
-| package | path | status |
+| package | spec | status |
 |---|---|---|
-| **`inference` (KServe OIP v2 + full-duplex)** | [`proto/inference/v2/`](proto/inference/v2/) · [oip_mandatory.md](specification/protocol/oip_mandatory.md) | **MANDATORY** federation face |
-| `zndx.engine.v1` | [`specification/protocol/engine_grpc.md`](specification/protocol/engine_grpc.md) | v1 — `Complete` (**deprecated as sole path**; lowers to OIP) + `Status` (+ `surfaces[]`, [`surfaces.md`](specification/protocol/surfaces.md)) + `ServerQuery` + `Remediate` + **`Yield`**; capability vocabulary in [`capabilities.md`](specification/protocol/capabilities.md); warehouse `tx_id` is RFC 9562 UUIDv7 ([`tx_id.md`](specification/protocol/tx_id.md)); data products on shared RustFS ([`data_products.md`](specification/protocol/data_products.md)) |
+| `zndx.engine.v1` | [`specification/protocol/engine_grpc.md`](specification/protocol/engine_grpc.md) | v1 — `Complete` + `Status` + `Remediate` + **`Yield`** + `ServerQuery` + `RecordLineage` + `WatchWorkload` + **`Announce`** (TTL’d S2S join); warehouse `tx_id` is RFC 9562 UUIDv7 ([`tx_id.md`](specification/protocol/tx_id.md)); data products on shared RustFS ([`data_products.md`](specification/protocol/data_products.md)); primary UI discovery in [`surfaces.md`](specification/protocol/surfaces.md) |
 | `zndx.scheduler.v1` | [`specification/protocol/scheduler_grpc.md`](specification/protocol/scheduler_grpc.md) | v1 — federated **scheduler** capability (queues, policy, projection, **queue-share requests**). Lab backend: YuniKorn; not a vendor in the service name |
+| `zndx.supervision.v1` | [`specification/operations/nautilus_supervision.md`](specification/operations/nautilus_supervision.md) | v1 — the **supervision grammar**: supervision tree, state machines with phase gates and horizons, objectives on the final surfaced result, the position vocabulary engines report and the ledger stamps, and the **Nautilus** supervisor service. Grammar here; a project ships an *instance* (no project is named in the protocol) |
 | `zndx.verify.v1` | — | RESERVED: verification artifacts on the wire (reasoner certificates, kvasir proof DAGs — the rase_types direction from Gaius) |
-
-Deprecations ledger: [`specification/protocol/deprecations.md`](specification/protocol/deprecations.md).
 
 ## Operations (identity, secrets, process coordination)
 
@@ -52,19 +37,18 @@ coordinate multi-engine host work. Adopters must follow:
 |---|---|
 | [`specification/operations/kerberos_and_secretspec.md`](specification/operations/kerberos_and_secretspec.md) | **Binding** Kerberos principal catalog, SecretSpec allowlists, `kinit` process wrappers, Ranger onboarding |
 | [`specification/operations/minifi_sentinels.md`](specification/operations/minifi_sentinels.md) | **Binding design** — MiNiFi C++ sentinels (C2 + OTel); **Knative Serving** scale-to-zero + **YuniKorn** admission on RKE2 |
+| [`specification/operations/nautilus_supervision.md`](specification/operations/nautilus_supervision.md) | **Binding design** — **Nautilus**, the deterministic external supervisor (Erlang-style tree, phase gates, Brier-scored ledger, write-ahead bookkeeping); **Overwatch** stays engine-native reasoning. Each project ships a `zndx.supervision.v1` instance |
 
 **Reference implementation:** [weathership/signals](https://github.com/weathership/signals) is the first federation project on Kerberos + SecretSpec, and vendors **MiNiFi C++** (`components/minifi-cpp`) and **YuniKorn core** (`components/yunikorn-core`) for sentinel coordination. Sibling engines should implement these procedures—do not invent a parallel long-term identity or process-control path.
 
-## Adopters (must implement OIP full duplex)
+## Adopters
 
-| project | native service | shared faces | gRPC (typical) |
+| project | native service | shared service | gRPC port |
 |---|---|---|---|
-| signals | `zndx.scheduler.v1.Scheduler` (platform) | OIP + `zndx.engine.v1.Engine` | :50551 (lab lattice) |
-| gaius | `gaius.engine.GaiusService` (see `gaius FEDERATION.md`) | OIP + `zndx.engine.v1.Engine` | :50051 |
-| aegir | `aegir.engine.AegirEngine` | OIP + `zndx.engine.v1.Engine` | :50151 |
-| atelier | `atelier.engine.AtelierEngine` | OIP + `zndx.engine.v1.Engine` | :50251 |
-| synth | project native | OIP + `zndx.engine.v1.Engine` | :50351 |
-| metabase | `metabase.engine.MetabaseEngine` (capability `dashboard`) | OIP + `zndx.engine.v1.Engine` | :50451 |
+| signals | `zndx.scheduler.v1.Scheduler` (platform) | `zndx.engine.v1.Engine` | :50551 (lab lattice) |
+| aegir | `aegir.engine.AegirEngine` | `zndx.engine.v1.Engine` | :50151 |
+| atelier | `atelier.engine.AtelierEngine` | `zndx.engine.v1.Engine` | :50251 |
+| gaius | (see `gaius FEDERATION.md`) | `zndx.engine.v1.Engine` | :50051 |
 | hermes-agent | ACP / plugins | planned (client of core + engines) | — |
 
 GPU co-tenancy rides the shared advisory lease dir `/tmp/zndx-gpu-leases` (per-GPU-set
@@ -75,40 +59,31 @@ Cross-project **admission** is YuniKorn (sentinel **is** the Application).
 
 ## Evolution rules
 
-- **Additive-only within a version**: new fields get new numbers; nothing renamed/removed. Breaking changes → new versioned package.
-- **OIP first for portable inference**: new inference features land on OIP tensors/parameters or additive OIP extensions, then optional Complete facade.
-- **Capabilities, not models** on the convenience face: `Complete.capability` names abilities; engines resolve to backends or peer `model_name`.
-- **Engine-private details stay private**: internal vLLM ports, log paths, product streams do not replace OIP.
-- Changes land **here** first, then submodule bump in each adopter.
+- **Additive-only within a version**: new fields get new numbers; nothing is renamed,
+  renumbered, or removed. Breaking changes mean a new versioned package (`v2`).
+- **Capabilities, not models**: requests name abilities ("instruct", "referee"); the
+  serving engine chooses and reports the model.
+- **Engine-private details stay private**: internal serving ports, log paths, and
+  process details do not cross this boundary.
+- Changes land here first, by PR/commit visible to all three projects, then propagate
+  by submodule bump — a shared proto is only shared if there is exactly one of it.
 
-## Vestigial alternatives (must mark deprecated)
+## Relationship to the Open Inference Protocol
 
-Do **not** treat these as complete federation:
-
-- Unary-only `Complete` without OIP server/proxy
-- Product loopback HTTP complete as the cross-process inference API
-- Gaius-native streams as peer-facing protocol
-- Direct peer vLLM HTTP ports
-
-Mark in code:
-
-```text
-// DEPRECATED(federation): use OIP ModelInfer / ModelStreamInfer.
-// Local facade / transitional adapter only. See signals-protocol deprecations.md
-```
+This repository borrows OIP's *form* (versioned spec + proto, additive evolution) and
+reserves OIP itself as the **horizon peer protocol**: when heterogeneous serving stacks
+(KServe, Triton, external clusters) join the federation, `ModelInfer`/`ServerReady` are
+the lingua franca, and `zndx.engine.v1.Complete` maps onto them (chat-style completion
+with reasoning retention is a convenience surface OIP does not define; the mapping note
+lives in the spec doc). Until then, the zndx engines federate on this lighter contract.
 
 ## Codegen
 
-```bash
-# OIP (mandatory face)
-python -m grpc_tools.protoc -Iproto \
-  --python_out=<dst> --grpc_python_out=<dst> \
-  proto/inference/v2/open_inference_grpc.proto
+Python (the current adopters):
 
-# Capability convenience face
-python -m grpc_tools.protoc -Iproto \
-  --python_out=<dst> --grpc_python_out=<dst> \
-  proto/zndx/engine/v1/engine.proto
-```
+    python -m grpc_tools.protoc -Iproto \
+        --python_out=<dst> --grpc_python_out=<dst> \
+        proto/zndx/engine/v1/engine.proto
 
-Generated code is vendored per-project; **this repo is the single source of truth**.
+Generated code is vendored per-project (committed beside the native stubs); the proto
+here is the single source of truth.

@@ -1,7 +1,6 @@
 Vendored signals-protocol snapshot for the local Hermes lattice engine.
 
-Sources (do not treat this tree as the protocol SoR — bump from zndx/signals-protocol):
-- engine + OIP + most specs: metabase/components/signals-protocol @ 112a01b3
-- supervision.proto + nautilus_supervision.md + capabilities.md: gaius/external/signals-protocol @ 99ea67ee
-
-Canonical: git@github.com:zndx/signals-protocol.git
+Canonical: git@github.com:zndx/signals-protocol.git @ d51e67a
+(`Engine/Announce` + supervision.v1 Expectation/Supervise). Do not treat this
+tree as the protocol SoR — bump from that repo. Hermes-only extras
+(`oip_mandatory.md`, `deprecations.md`, OIP proto) stay here.

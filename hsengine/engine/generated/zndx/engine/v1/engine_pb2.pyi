@@ -281,7 +281,7 @@ class Endpoint(_message.Message):
     healthy: bool
     gpu_ids: _containers.RepeatedScalarFieldContainer[int]
     detail: str
-    def __init__(self, capability: _Optional[str] = ..., model: _Optional[str] = ..., healthy: bool = ..., gpu_ids: _Optional[_Iterable[int]] = ..., detail: _Optional[str] = ...) -> None: ...
+    def __init__(self, capability: _Optional[str] = ..., model: _Optional[str] = ..., healthy: _Optional[bool] = ..., gpu_ids: _Optional[_Iterable[int]] = ..., detail: _Optional[str] = ...) -> None: ...
 
 class StatusResponse(_message.Message):
     __slots__ = ("project", "endpoints", "total_gpus", "surfaces")
@@ -303,7 +303,7 @@ class Surface(_message.Message):
     kind: str
     url: str
     healthy: bool
-    def __init__(self, kind: _Optional[str] = ..., url: _Optional[str] = ..., healthy: bool = ...) -> None: ...
+    def __init__(self, kind: _Optional[str] = ..., url: _Optional[str] = ..., healthy: _Optional[bool] = ...) -> None: ...
 
 class YieldRequest(_message.Message):
     __slots__ = ("workload_id", "reason", "sentinel_id", "detail")
@@ -327,7 +327,7 @@ class YieldResponse(_message.Message):
     process_ended: bool
     restore_started: bool
     message: str
-    def __init__(self, ok: bool = ..., process_ended: bool = ..., restore_started: bool = ..., message: _Optional[str] = ...) -> None: ...
+    def __init__(self, ok: _Optional[bool] = ..., process_ended: _Optional[bool] = ..., restore_started: _Optional[bool] = ..., message: _Optional[str] = ...) -> None: ...
 
 class GitRemote(_message.Message):
     __slots__ = ("name", "url")
@@ -357,7 +357,7 @@ class ScheduleHint(_message.Message):
     airflow_dag_id: str
     source: str
     enabled: bool
-    def __init__(self, id: _Optional[str] = ..., cron: _Optional[str] = ..., airflow_dag_id: _Optional[str] = ..., source: _Optional[str] = ..., enabled: bool = ...) -> None: ...
+    def __init__(self, id: _Optional[str] = ..., cron: _Optional[str] = ..., airflow_dag_id: _Optional[str] = ..., source: _Optional[str] = ..., enabled: _Optional[bool] = ...) -> None: ...
 
 class WikiNote(_message.Message):
     __slots__ = ("id", "title", "body", "links", "origin_project")
@@ -385,7 +385,7 @@ class SubmodulePosture(_message.Message):
     pinned_sha: str
     checked_out_sha: str
     dirty: bool
-    def __init__(self, path: _Optional[str] = ..., name: _Optional[str] = ..., pinned_sha: _Optional[str] = ..., checked_out_sha: _Optional[str] = ..., dirty: bool = ...) -> None: ...
+    def __init__(self, path: _Optional[str] = ..., name: _Optional[str] = ..., pinned_sha: _Optional[str] = ..., checked_out_sha: _Optional[str] = ..., dirty: _Optional[bool] = ...) -> None: ...
 
 class MigrationPosture(_message.Message):
     __slots__ = ("source", "current", "unapplied")
@@ -421,7 +421,7 @@ class SourcePosture(_message.Message):
     behind: int
     submodules: _containers.RepeatedCompositeFieldContainer[SubmodulePosture]
     migrations: _containers.RepeatedCompositeFieldContainer[MigrationPosture]
-    def __init__(self, project: _Optional[str] = ..., checkout: _Optional[str] = ..., branch: _Optional[str] = ..., head: _Optional[str] = ..., running_sha: _Optional[str] = ..., dirty: bool = ..., upstream: _Optional[str] = ..., ahead: _Optional[int] = ..., behind: _Optional[int] = ..., submodules: _Optional[_Iterable[_Union[SubmodulePosture, _Mapping]]] = ..., migrations: _Optional[_Iterable[_Union[MigrationPosture, _Mapping]]] = ...) -> None: ...
+    def __init__(self, project: _Optional[str] = ..., checkout: _Optional[str] = ..., branch: _Optional[str] = ..., head: _Optional[str] = ..., running_sha: _Optional[str] = ..., dirty: _Optional[bool] = ..., upstream: _Optional[str] = ..., ahead: _Optional[int] = ..., behind: _Optional[int] = ..., submodules: _Optional[_Iterable[_Union[SubmodulePosture, _Mapping]]] = ..., migrations: _Optional[_Iterable[_Union[MigrationPosture, _Mapping]]] = ...) -> None: ...
 
 class ServerQueryRequest(_message.Message):
     __slots__ = ("kind", "ttl", "nonce", "origin_project", "note_id")
@@ -511,7 +511,7 @@ class CognitionHint(_message.Message):
     range_end_ms: int
     buckets: _containers.RepeatedCompositeFieldContainer[CognitionActivityBucket]
     streams: _containers.RepeatedCompositeFieldContainer[CognitionStreamHint]
-    def __init__(self, project: _Optional[str] = ..., unit: _Optional[str] = ..., running: bool = ..., thoughts: _Optional[int] = ..., cycles: _Optional[int] = ..., last_cycle_ms: _Optional[int] = ..., interval: _Optional[str] = ..., range_start_ms: _Optional[int] = ..., range_end_ms: _Optional[int] = ..., buckets: _Optional[_Iterable[_Union[CognitionActivityBucket, _Mapping]]] = ..., streams: _Optional[_Iterable[_Union[CognitionStreamHint, _Mapping]]] = ...) -> None: ...
+    def __init__(self, project: _Optional[str] = ..., unit: _Optional[str] = ..., running: _Optional[bool] = ..., thoughts: _Optional[int] = ..., cycles: _Optional[int] = ..., last_cycle_ms: _Optional[int] = ..., interval: _Optional[str] = ..., range_start_ms: _Optional[int] = ..., range_end_ms: _Optional[int] = ..., buckets: _Optional[_Iterable[_Union[CognitionActivityBucket, _Mapping]]] = ..., streams: _Optional[_Iterable[_Union[CognitionStreamHint, _Mapping]]] = ...) -> None: ...
 
 class ContributionItem(_message.Message):
     __slots__ = ("group", "id", "system", "total", "series")
@@ -667,7 +667,7 @@ class LineageResponse(_message.Message):
     ERROR_FIELD_NUMBER: _ClassVar[int]
     accepted: bool
     error: str
-    def __init__(self, accepted: bool = ..., error: _Optional[str] = ...) -> None: ...
+    def __init__(self, accepted: _Optional[bool] = ..., error: _Optional[str] = ...) -> None: ...
 
 class WatchWorkloadRequest(_message.Message):
     __slots__ = ()
@@ -706,3 +706,25 @@ class WorkloadProfile(_message.Message):
     settled_at_unix_ms: int
     detail: str
     def __init__(self, phase: _Optional[_Union[WorkloadPhase, str]] = ..., generation: _Optional[int] = ..., intents: _Optional[_Iterable[_Union[WorkloadIntent, _Mapping]]] = ..., settled_at_unix_ms: _Optional[int] = ..., detail: _Optional[str] = ...) -> None: ...
+
+class PeerAnnounce(_message.Message):
+    __slots__ = ("project", "engine_target", "surfaces", "ttl_seconds")
+    PROJECT_FIELD_NUMBER: _ClassVar[int]
+    ENGINE_TARGET_FIELD_NUMBER: _ClassVar[int]
+    SURFACES_FIELD_NUMBER: _ClassVar[int]
+    TTL_SECONDS_FIELD_NUMBER: _ClassVar[int]
+    project: str
+    engine_target: str
+    surfaces: _containers.RepeatedCompositeFieldContainer[Surface]
+    ttl_seconds: int
+    def __init__(self, project: _Optional[str] = ..., engine_target: _Optional[str] = ..., surfaces: _Optional[_Iterable[_Union[Surface, _Mapping]]] = ..., ttl_seconds: _Optional[int] = ...) -> None: ...
+
+class AnnounceAck(_message.Message):
+    __slots__ = ("accepted", "ttl_seconds", "error")
+    ACCEPTED_FIELD_NUMBER: _ClassVar[int]
+    TTL_SECONDS_FIELD_NUMBER: _ClassVar[int]
+    ERROR_FIELD_NUMBER: _ClassVar[int]
+    accepted: bool
+    ttl_seconds: int
+    error: str
+    def __init__(self, accepted: _Optional[bool] = ..., ttl_seconds: _Optional[int] = ..., error: _Optional[str] = ...) -> None: ...

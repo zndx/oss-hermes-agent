@@ -5,7 +5,7 @@ import warnings
 
 from hsengine.engine.generated.zndx.engine.v1 import engine_pb2 as zndx_dot_engine_dot_v1_dot_engine__pb2
 
-GRPC_GENERATED_VERSION = '1.76.0'
+GRPC_GENERATED_VERSION = '1.81.1'
 GRPC_VERSION = grpc.__version__
 _version_not_supported = False
 
@@ -25,7 +25,7 @@ if _version_not_supported:
     )
 
 
-class EngineStub(object):
+class EngineStub:
     """Missing associated documentation comment in .proto file."""
 
     def __init__(self, channel):
@@ -69,16 +69,19 @@ class EngineStub(object):
                 request_serializer=zndx_dot_engine_dot_v1_dot_engine__pb2.WatchWorkloadRequest.SerializeToString,
                 response_deserializer=zndx_dot_engine_dot_v1_dot_engine__pb2.WorkloadProfile.FromString,
                 _registered_method=True)
+        self.Announce = channel.unary_unary(
+                '/zndx.engine.v1.Engine/Announce',
+                request_serializer=zndx_dot_engine_dot_v1_dot_engine__pb2.PeerAnnounce.SerializeToString,
+                response_deserializer=zndx_dot_engine_dot_v1_dot_engine__pb2.AnnounceAck.FromString,
+                _registered_method=True)
 
 
-class EngineServicer(object):
+class EngineServicer:
     """Missing associated documentation comment in .proto file."""
 
     def Complete(self, request, context):
-        """DEPRECATED(federation sole path): lower to OIP ModelInfer.
-        Convenience chat-shaped capability request. Callers that can speak OIP SHOULD
-        use inference.GRPCInferenceService instead. Engines MUST still implement this
-        RPC during transition and MUST implement it by lowering to OIP tensors.
+        """Request an inference CAPABILITY. The engine selects/ensures the model and serves internally;
+        the caller never sees a model endpoint.
         """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
@@ -150,6 +153,18 @@ class EngineServicer(object):
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
+    def Announce(self, request, context):
+        """Join the federation directory: the caller asks THIS engine to remember a
+        PeerHint (lattice Engine host:port) until ttl_seconds elapses. Launchers
+        stay pull-only (ServerQuery PEERS, then Status.surfaces). This is the
+        Matrix-style join — not gossip, not a peer-contract edit. Engines that
+        are not a directory answer UNIMPLEMENTED (honest).
+        (added 2026-09-04, aegir — additive v1.)
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
 
 def add_EngineServicer_to_server(servicer, server):
     rpc_method_handlers = {
@@ -188,6 +203,11 @@ def add_EngineServicer_to_server(servicer, server):
                     request_deserializer=zndx_dot_engine_dot_v1_dot_engine__pb2.WatchWorkloadRequest.FromString,
                     response_serializer=zndx_dot_engine_dot_v1_dot_engine__pb2.WorkloadProfile.SerializeToString,
             ),
+            'Announce': grpc.unary_unary_rpc_method_handler(
+                    servicer.Announce,
+                    request_deserializer=zndx_dot_engine_dot_v1_dot_engine__pb2.PeerAnnounce.FromString,
+                    response_serializer=zndx_dot_engine_dot_v1_dot_engine__pb2.AnnounceAck.SerializeToString,
+            ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
             'zndx.engine.v1.Engine', rpc_method_handlers)
@@ -196,7 +216,7 @@ def add_EngineServicer_to_server(servicer, server):
 
 
  # This class is part of an EXPERIMENTAL API.
-class Engine(object):
+class Engine:
     """Missing associated documentation comment in .proto file."""
 
     @staticmethod
@@ -378,6 +398,33 @@ class Engine(object):
             '/zndx.engine.v1.Engine/WatchWorkload',
             zndx_dot_engine_dot_v1_dot_engine__pb2.WatchWorkloadRequest.SerializeToString,
             zndx_dot_engine_dot_v1_dot_engine__pb2.WorkloadProfile.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def Announce(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/zndx.engine.v1.Engine/Announce',
+            zndx_dot_engine_dot_v1_dot_engine__pb2.PeerAnnounce.SerializeToString,
+            zndx_dot_engine_dot_v1_dot_engine__pb2.AnnounceAck.FromString,
             options,
             channel_credentials,
             insecure,
