@@ -17,9 +17,11 @@
       enable = true;
       sync = {
         enable = true;
-        # Upstream Hermes stays at its default (core) surface. The only extra
-        # we add is the local lattice engine.
+        # Perihelion: core Hermes + Signals-owned extras only (see
+        # hsengine.surface.LOCAL_EXTRAS). Never `[all]`, never upstream
+        # extras/plugins. Expand LOCAL_EXTRAS when the lattice grows.
         extras = [ "engine" ];
+        allExtras = false;
         # devenv defaults to `--no-install-workspace`, which syncs the
         # dependencies but skips hermes-agent itself — no `hermes` on PATH.
         arguments = [ "--frozen" ];
@@ -97,7 +99,8 @@
   # https://devenv.sh/tests/
   enterTest = ''
     hermes version
-    python -c "import hermes_cli, run_agent"
+    python -c "import hermes_cli, run_agent, hsengine"
+    python ${config.devenv.root}/tests/engine/test_surface_extras.py
   '';
 
   # See full reference at https://devenv.sh/reference/options/

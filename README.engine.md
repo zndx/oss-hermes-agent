@@ -18,6 +18,15 @@ This tree is an **external** peer. Do not vendor Hermes into Signals. A
 sample systemd unit (when Signals adds `--peers hermes`) should
 `WorkingDirectory=` here.
 
+## Operational surface (perihelion)
+
+The local venv is core upstream Hermes plus **Signals-owned extras only**.
+The Signals stack may grow extras (`hsengine.surface.LOCAL_EXTRAS`, today
+`engine`). Do **not** sync upstream Hermes extras (`[all]`, `web`,
+`google`, `youtube`, `mcp`, messaging, …) or activate in-tree plugins /
+`optional-skills` to make the agent “complete.” Hold that line as the
+lattice evolves. `tests/engine/test_surface_extras.py` is the tripwire.
+
 ## Quick start
 
 ```bash
