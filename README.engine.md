@@ -40,8 +40,10 @@ secretspec set HERMES_DASHBOARD_BASIC_AUTH_PASSWORD
 devenv up                            # :50651 engine + :9119 dashboard
 ```
 
-Federated-menu listing on the Signals hub still needs the hub roster
-(`hermes: 50651`). That change is **not** in this tree — see
+The Federated menu **is** `Engine/Status.surfaces` (`kind=primary`). Hermes
+already sends that. v1 discovery is pull-from-seeds, not a push join, so
+the Signals hub still needs `:50651` on its PEERS roster (or a later
+`Announce` RPC). Spec:
 [`docs/local/signals-hub-peer-hermes.md`](docs/local/signals-hub-peer-hermes.md).
 
 Accept probes:

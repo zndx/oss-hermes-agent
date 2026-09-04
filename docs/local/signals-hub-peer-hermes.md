@@ -17,7 +17,48 @@ Hermes (this checkout, `rch/devenv`) already:
 Launchers (Gaius waffle, Signals UI) **do not** hard-code peer UI URLs.
 They seed `SIGNALS_ENGINE_TARGET` (`:50551`), `Engine/Status` each target,
 and one-hop `ServerQuery PEERS`. Hermes therefore appears in the Federated
-menu only after the **hub roster** includes `:50651`.
+menu only after some **seed** reaches `:50651`.
+
+## Protocol today — UI is already a message; join is not
+
+`surfaces.md` is explicit: a third-party engine that serves
+`zndx.engine.v1`, answers `Status`, and fills `surfaces[]` (`kind=primary`)
+appears **without a Gaius/Signals code change**. Hermes already does that.
+The Federated menu item **is** that `Surface` (url + healthy), not a
+product-private HTTP.
+
+What v1 does **not** have is a join/announce RPC. `ServerQuery PEERS` is
+the callee describing **its configured** lattice peers (`PeerHint`
+host:port only — never UI URLs). There is no `Register`, `Announce`, or
+directory write. Discovery is pull:
+
+1. Seed from **config** and/or `SIGNALS_ENGINE_TARGET` (hub `:50551`).
+2. `Engine/Status` each seed — if `surfaces` has `kind=primary`, list it.
+3. One-hop `ServerQuery PEERS` on whoever answered; Status those too.
+
+Serving the Engine face (“joining the workspace”) does not insert Hermes
+into the hub’s PEERS set. Until a seed lists `:50651`, launchers never
+call `Status` on us, so they never see the surface we already advertise.
+
+**Now (no protocol change):** add Hermes to the Signals hub roster
+(`engine_grpc_lattice.hermes = 50651`). That is config in `wxs/signals`,
+not waffle chrome. Spec below.
+
+**Enhancement (additive v1, later):** a join so an external engine can
+*push* a `PeerHint` (+ optional surfaces) to the hub, TTL’d, and show up
+in `ServerQuery PEERS` without a contract edit. Sketch:
+
+- New RPC on `zndx.engine.v1.Engine`, e.g. `Announce(PeerAnnounce) returns (Ack)`
+  — or a new `ServerQuery` kind the **caller** is not the right shape for
+  (ServerQuery is “tell me about you”, not “remember me”).
+- `PeerAnnounce`: `project`, `engine_target` (`host:port`), `surfaces[]`
+  (same `Surface` messages), `ttl_seconds`.
+- Hub records the hint; `PEERS` includes it until TTL or a later Status
+  miss. Honest empty if the hub does not implement Announce (`UNIMPLEMENTED`).
+- Hermes would `Announce` to `SIGNALS_ENGINE_TARGET` at engine start
+  (and heartbeat). Launchers stay pull-only.
+
+Until Announce exists, the contract row is the join.
 
 ## Signals (`~/local/src/wxs/signals`)
 
