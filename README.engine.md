@@ -22,7 +22,7 @@ sample systemd unit (when Signals adds `--peers hermes`) should
 
 ```bash
 # Canonical venv is devenv-managed: .devenv/state/venv (not a uv-downloaded .venv).
-devenv tasks run devenv:python:uv    # uv sync --frozen --extra all
+devenv tasks run devenv:python:uv    # uv sync --frozen --extra engine
 ./scripts/compile_engine_protos.sh   # after proto edits
 python -m hsengine                   # or: devenv up  (processes.engine)
 python scripts/hermes_status_ok.py   # accept: Engine/Status project=hermes

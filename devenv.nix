@@ -17,9 +17,9 @@
       enable = true;
       sync = {
         enable = true;
-        # The local stack is `[all]` — lattice engine included there, not a
-        # separate devenv extra.
-        extras = [ "all" ];
+        # Upstream Hermes stays at its default (core) surface. The only extra
+        # we add is the local lattice engine.
+        extras = [ "engine" ];
         # devenv defaults to `--no-install-workspace`, which syncs the
         # dependencies but skips hermes-agent itself — no `hermes` on PATH.
         arguments = [ "--frozen" ];
