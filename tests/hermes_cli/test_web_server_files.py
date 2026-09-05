@@ -53,18 +53,31 @@ def forced_files_client(monkeypatch, tmp_path):
 
 @pytest.fixture
 def local_files_client(monkeypatch, tmp_path):
-    home = tmp_path / "home"
-    home.mkdir()
+    root = tmp_path / "project"
+    root.mkdir()
     monkeypatch.delenv("HERMES_DASHBOARD_FILES_ROOT", raising=False)
     monkeypatch.delenv("HERMES_HOME", raising=False)
-    monkeypatch.setenv("HOME", str(home))
+    monkeypatch.chdir(root)
 
     client, prev_auth_required, prev_bound_host = _client_with_app_state()
     try:
-        yield client, home
+        yield client, root
     finally:
         _close_client(client)
         _restore_app_state(prev_auth_required, prev_bound_host)
+
+
+def test_local_files_default_to_process_cwd(local_files_client):
+    client, root = local_files_client
+    marker = root / "README.md"
+    marker.write_text("project")
+    listing = client.get("/api/files")
+    assert listing.status_code == 200
+    body = listing.json()
+    assert body["path"] == str(root.resolve())
+    assert body["can_change_path"] is True
+    assert body["locked_root"] is None
+    assert "README.md" in [e["name"] for e in body["entries"]]
 
 
 

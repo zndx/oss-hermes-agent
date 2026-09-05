@@ -128,8 +128,10 @@ def _managed_files_policy(request: Request, *, create_root: bool = True) -> Mana
         root = _ensure_managed_root(_HOSTED_MANAGED_FILES_ROOT) if create_root else _HOSTED_MANAGED_FILES_ROOT
         return ManagedFilesPolicy(default_path=root, locked_root=root, can_change_path=False)
 
-    home = _canonical_path(Path.home())
-    return ManagedFilesPolicy(default_path=home, locked_root=None, can_change_path=True)
+    # Local dashboard: start at the process cwd (devenv / `hermes dashboard`
+    # from a checkout), not $HOME — home is too wide for the Files view.
+    here = _canonical_path(Path.cwd())
+    return ManagedFilesPolicy(default_path=here, locked_root=None, can_change_path=True)
 
 
 def _resolve_managed_path(
