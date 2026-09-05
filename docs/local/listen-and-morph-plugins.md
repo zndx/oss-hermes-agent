@@ -1,6 +1,7 @@
 # Pointer: listen + morph is a Signals plugin design
 
-Canonical sketch (plugins only, LuxCore on Gaius, no upstream Hermes):
+Canonical sketch (plugins only, LuxCore on Gaius). Keyframes ride
+`zndx.engine.v1.Engine/Render` (`keyframe.md`); still SoR is RustFS.
 
 `~/local/src/wxs/signals-plugins/docs/listen-and-morph.md`
 
