@@ -36,6 +36,10 @@ protected and lags until a PR).
 git push origin HEAD
 ```
 
+`devenv` `enterShell` runs `scripts/devenv-enter-checks.sh` (network at most
+once an hour): install missing `signals-plugins` from GitHub, notice when
+trunk moved, and notice when `HEAD` is behind `upstream/main`.
+
 ## Operational surface (perihelion)
 
 The local venv is core upstream Hermes plus **Signals-owned extras only**.
