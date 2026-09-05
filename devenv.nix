@@ -13,6 +13,28 @@ let
     "hermes-sessions"
   ];
 
+  # Nix OpenSSH is built without GSSAPI; Ubuntu /etc/ssh/ssh_config still
+  # has `GSSAPIAuthentication yes` (line 53) so every `git push` warns.
+  # Prefer the user config, then the system file with GSSAPI* stripped.
+  sshNoGssapi = pkgs.writeShellScriptBin "ssh" ''
+    set -euo pipefail
+    state="''${DEVENV_STATE:-/tmp}/ssh-nongss"
+    mkdir -p "$state"
+    cfg="$state/config"
+    {
+      if [[ -f "''${HOME}/.ssh/config" ]]; then
+        echo "Include ''${HOME}/.ssh/config"
+      fi
+      grep -viE '^[[:space:]]*GSSAPI' /etc/ssh/ssh_config 2>/dev/null || true
+    } > "$cfg"
+    exec ${lib.getExe pkgs.openssh} -F "$cfg" "$@"
+  '';
+  opensshForPath = pkgs.symlinkJoin {
+    name = "openssh-devenv";
+    paths = [ sshNoGssapi pkgs.openssh ];
+    ignoreCollisions = true;
+  };
+
   # Port lattice: synth 9000/9001 · signals 9010/9011 · hermes 9020/9021.
   mc = pkgs.writeShellScriptBin "mc" ''
     set -euo pipefail
@@ -80,7 +102,7 @@ in
     gh
     git
     ripgrep
-    openssh
+    opensshForPath
     ffmpeg
     portaudio
     grpcurl
