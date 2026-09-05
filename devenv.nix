@@ -125,6 +125,26 @@ in
     RUSTFS_CLIENT_CONFIG_DIR = config.env.DEVENV_STATE + "/rustfs/mc";
   };
 
+  # TLS front for LAN/WARP browsers (getUserMedia needs a secure context).
+  # Same shape as synth: caddy internal CA, no :80 redirect, default_sni for
+  # no-SNI IP clients. :9120 tls → dashboard :9119. Click-through is enough
+  # for a laptop; iPad WebKit wants the CA trusted once.
+  services.caddy = {
+    enable = true;
+    ca = null;
+    config = ''
+      {
+        local_certs
+        auto_https disable_redirects
+        default_sni 192.168.1.55
+      }
+      localhost:9120, 127.0.0.1:9120, 192.168.1.55:9120, tinybox:9120, tinybox.lan:9120, tinybox.dev.vista.zndx.org:9120 {
+        tls internal
+        reverse_proxy 127.0.0.1:9119
+      }
+    '';
+  };
+
   # https://devenv.sh/services/rustfs/ — native service (ports, env, /health).
   # Overlay pin in devenv.yaml matches Signals/synth; package comes from pkgs.rustfs.
   # Port lattice: synth 9000/9001 · signals 9010/9011 · hermes 9020/9021.
@@ -210,7 +230,7 @@ in
     echo "  hermes                 interactive CLI"
     echo "  hermes version         version / environment info"
     echo "  python -m hsengine     signals lattice engine (:50651, project=hermes)"
-    echo "  hermes dashboard       web UI :9119 (LAN + WARP; secretspec auth)"
+    echo "  hermes dashboard       web UI :9119 HTTP / :9120 HTTPS (caddy local CA; getUserMedia)"
     echo "  rustfs                 S3 :9020 / console :9021  (mc alias local; $RUSTFS_DATA_DIR)"
     echo "  bwrap                  engine+dashboard jail (HOME=/home/hermes; HERMES_BWRAP=0 to skip)"
     echo "  node/npm               $(node --version 2>/dev/null || echo missing) / $(npm --version 2>/dev/null || echo missing)"
