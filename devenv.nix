@@ -204,6 +204,7 @@ in
     python ${config.devenv.root}/tests/engine/test_dashboard_process.py
     bash -n ${config.devenv.root}/scripts/devenv-enter-checks.sh
     bash -n ${config.devenv.root}/scripts/merge-upstream.sh
+    bash -n ${config.devenv.root}/scripts/dashboard-curl.sh
   '';
 
   # See full reference at https://devenv.sh/reference/options/

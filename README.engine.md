@@ -61,6 +61,7 @@ python -m hsengine                   # or: devenv up  (engine + dashboard)
 python scripts/hermes_status_ok.py   # accept: Engine/Status project=hermes
 secretspec set HERMES_DASHBOARD_BASIC_AUTH_PASSWORD
 devenv up                            # :50651 engine + :9119 dashboard
+./scripts/dashboard-curl.sh /api/files   # authenticated probe (secretspec, no password on stdout)
 ```
 
 The Federated menu **is** `Engine/Status.surfaces` (`kind=primary`). Hermes
