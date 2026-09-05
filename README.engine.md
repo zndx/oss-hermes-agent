@@ -19,6 +19,23 @@ This tree is an **external** peer. Do not vendor Hermes into Signals. A
 sample systemd unit (when Signals adds `--peers hermes`) should
 `WorkingDirectory=` here.
 
+## Remotes
+
+| remote | URL | push |
+|--------|-----|------|
+| `origin` | `git@github.com:zndx/oss-hermes-agent.git` | yes (our fork) |
+| `upstream` | `git@github.com:NousResearch/hermes-agent.git` | **no** (`DISABLE`) |
+
+NousResearch is high velocity. Fetch `upstream/main` often and merge into
+the published fork (`rch/devenv` is the working line; `origin/main` is
+protected and lags until a PR).
+
+```bash
+./scripts/merge-upstream.sh          # how far behind
+./scripts/merge-upstream.sh --merge  # merge upstream/main into HEAD
+git push origin HEAD
+```
+
 ## Operational surface (perihelion)
 
 The local venv is core upstream Hermes plus **Signals-owned extras only**.
