@@ -1,6 +1,39 @@
 { pkgs, lib, config, inputs, ... }:
 
+let
+  # Lab default matches synth/vigil (/raid/build/<project>/data). Override
+  # with RUSTFS_DATA_DIR in .env. builtins.getEnv — not config.env — so
+  # extraEnvironment cannot recurse.
+  rustfsDataDir =
+    let v = builtins.getEnv "RUSTFS_DATA_DIR";
+    in if v != "" then v else "/raid/build/hermes/data";
+
+  rustfsBuckets = [
+    "hermes-artifacts"
+    "hermes-sessions"
+  ];
+
+  # Port lattice: synth 9000/9001 · signals 9010/9011 · hermes 9020/9021.
+  mc = pkgs.writeShellScriptBin "mc" ''
+    set -euo pipefail
+    CLIENT_DIR="''${RUSTFS_CLIENT_CONFIG_DIR:-$DEVENV_STATE/rustfs/mc}"
+    mkdir -p "$CLIENT_DIR"
+    ADDRESS="''${RUSTFS_ADDRESS:-127.0.0.1:9020}"
+    ACCESS="''${RUSTFS_ACCESS_KEY:-rustfsadmin}"
+    SECRET="''${RUSTFS_SECRET_KEY:-rustfsadmin}"
+    ${pkgs.minio-client}/bin/mc --config-dir "$CLIENT_DIR" \
+      alias set local "http://$ADDRESS" "$ACCESS" "$SECRET" \
+      --api S3v4 --path on >/dev/null 2>&1 || true
+    exec ${pkgs.minio-client}/bin/mc --config-dir "$CLIENT_DIR" "$@"
+  '';
+in
 {
+  overlays = [
+    (final: prev: {
+      rustfs = inputs.rustfs.packages.${prev.stdenv.system}.default;
+    })
+  ];
+
   # https://devenv.sh/languages/
   #
   # Hermes targets Python 3.11+ and is locked with uv. `uv sync` installs the
@@ -51,6 +84,9 @@
     ffmpeg
     portaudio
     grpcurl
+    # Object store (overlay binary + wrapped mc alias `local`)
+    rustfs
+    mc
   ] ++ lib.optional (pkgs ? secretspec) pkgs.secretspec;
 
   # Gitignored `.env` is the secretspec dotenv store (dashboard auth).
@@ -62,6 +98,54 @@
     UV_PYTHON_DOWNLOADS = "never";
     SIGNALS_ENGINE_TARGET = "127.0.0.1:50551";
     HERMES_ENGINE_TARGET = "127.0.0.1:50651";
+    RUSTFS_DATA_DIR = rustfsDataDir;
+    RUSTFS_ADDRESS = "127.0.0.1:9020";
+    RUSTFS_CONSOLE_ADDRESS = "127.0.0.1:9021";
+    RUSTFS_ACCESS_KEY = "rustfsadmin";
+    RUSTFS_SECRET_KEY = "rustfsadmin";
+    RUSTFS_CLIENT_CONFIG_DIR = config.env.DEVENV_STATE + "/rustfs/mc";
+  };
+
+  # RustFS (S3-compatible) — overlay binary, process like Signals (not
+  # services.rustfs). Objects under $RUSTFS_DATA_DIR; API :9020 / console :9021.
+  processes.rustfs = {
+    exec = ''
+      set -euo pipefail
+      DATA_DIR="''${RUSTFS_DATA_DIR:-${rustfsDataDir}}"
+      ADDRESS="''${RUSTFS_ADDRESS:-127.0.0.1:9020}"
+      CONSOLE="''${RUSTFS_CONSOLE_ADDRESS:-127.0.0.1:9021}"
+      ACCESS="''${RUSTFS_ACCESS_KEY:-rustfsadmin}"
+      SECRET="''${RUSTFS_SECRET_KEY:-rustfsadmin}"
+      mkdir -p "$DATA_DIR"
+      echo "Starting Hermes RustFS object store"
+      echo "  data    $DATA_DIR"
+      echo "  S3 API  http://$ADDRESS  (path-style; mc alias local)"
+      echo "  console http://$CONSOLE"
+      exec rustfs server \
+        --address "$ADDRESS" \
+        --console-address "$CONSOLE" \
+        --console-enable \
+        --access-key "$ACCESS" \
+        --secret-key "$SECRET" \
+        "$DATA_DIR"
+    '';
+    process-compose = {
+      readiness_probe = {
+        exec.command = "bash -c 'exec 3<>/dev/tcp/127.0.0.1/9020'";
+        initial_delay_seconds = 2;
+        period_seconds = 5;
+        timeout_seconds = 3;
+        success_threshold = 1;
+        failure_threshold = 12;
+      };
+    };
+  };
+
+  tasks."devenv:rustfs:buckets" = {
+    exec = lib.concatStringsSep "\n" (
+      map (b: ''mkdir -p "${rustfsDataDir}/${b}"'') rustfsBuckets
+    );
+    before = [ "devenv:processes:rustfs" ];
   };
 
   # Lattice engine — join as project=hermes, capability=agent on :50651.
@@ -127,6 +211,7 @@
     echo "  hermes version         version / environment info"
     echo "  python -m hsengine     signals lattice engine (:50651, project=hermes)"
     echo "  hermes dashboard       web UI :9119 (LAN + WARP; secretspec auth)"
+    echo "  rustfs                 S3 :9020 / console :9021  (mc alias local; $RUSTFS_DATA_DIR)"
     echo "  node/npm               $(node --version 2>/dev/null || echo missing) / $(npm --version 2>/dev/null || echo missing)"
     echo "  venv                   ${config.devenv.state}/venv  (devenv:python:uv)"
     echo "  pytest tests/ -q       test suite"
