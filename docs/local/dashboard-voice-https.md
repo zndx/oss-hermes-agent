@@ -53,6 +53,21 @@ already-trusted proxy for `X-Forwarded-Proto`.
 | `https://192.168.1.55:9120` (caddy, click-through) | yes |
 | `https://tinybox.dev.vista.zndx.org` (WARP TLS) | yes |
 
+## Varnish vs Caddy for TLS
+
+Signals projects already run **Varnish as HTTP cache** on `127.0.0.1:609x`
+(gaius 6091 · signals 6092 · aegir 6093 · atelier 6094): `pass` everything
+except `*_origin` waffle routes. devenv `services.varnish` has **no TLS
+options**. Open-source Varnish Cache does not terminate TLS; the companion
+is Hitch (or Varnish Enterprise). Hitch+Varnish is **two** extra processes
+and still a weak WebSocket/PTY front.
+
+Synth already split the jobs: **Caddy `tls internal` for getUserMedia**,
+Varnish only if something should be cached. Hermes should do the same:
+keep Caddy on `:9120` for the secure context. Add Varnish later (port
+**6095** in that decade) only if we have a `*_origin` roster to cache —
+and `return (pass)` for `/api/pty`, `/auth/*`, and voice WS.
+
 ## Do not
 
 - Add `Observe` / WebRTC to `zndx.engine.v1` / signals-protocol.
