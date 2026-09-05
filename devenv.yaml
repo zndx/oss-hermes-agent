@@ -2,8 +2,8 @@
 inputs:
   nixpkgs:
     url: github:cachix/devenv-nixpkgs/rolling
-  # S3-compatible object store (not in nixpkgs). Same pin as Signals/synth.
-  # Data dir: $RUSTFS_DATA_DIR (lab default /raid/build/hermes/data).
+  # devenv services.rustfs pulls this input. Pin matches Signals/synth
+  # (99701e9) rather than floating HEAD.
   rustfs:
     url: github:rustfs/rustfs/99701e9f52eaafecccd73b3a2a35bf66423dd4f9
 

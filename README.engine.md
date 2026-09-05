@@ -14,7 +14,7 @@ face; Nautilus instance follows Gaius (read-only adoption only).
 | dashboard bind | `0.0.0.0:9119` (LAN `192.168.1.55` + WARP; basic auth via secretspec) |
 | federation peers | gaius `:50051` (`thinking`) · aegir `:50151` (`instruct`) |
 | Nautilus instance | `config/supervision/hermes.textproto` (observe-only; Gaius leads the supervisor) |
-| Object store | Hermes RustFS S3 `:9020` / console `:9021` (`/raid/build/hermes/data`; buckets `hermes-artifacts`, `hermes-sessions`). Overlay pin matches Signals/synth. Lattice peers keep their own: synth `:9000`, Signals `:9010`. |
+| Object store | devenv `services.rustfs` — S3 `:9020` / console `:9021` (`/raid/build/hermes/data`; buckets `hermes-artifacts`, `hermes-sessions`). Overlay pin matches Signals/synth. Lattice peers keep their own: synth `:9000`, Signals `:9010`. |
 
 This tree is an **external** peer. Do not vendor Hermes into Signals. A
 sample systemd unit (when Signals adds `--peers hermes`) should

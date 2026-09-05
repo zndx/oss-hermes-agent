@@ -84,9 +84,7 @@ in
     ffmpeg
     portaudio
     grpcurl
-    # Object store (overlay binary + wrapped mc alias `local`)
-    rustfs
-    mc
+    mc # wrapped alias `local` against the devenv rustfs service
   ] ++ lib.optional (pkgs ? secretspec) pkgs.secretspec;
 
   # Gitignored `.env` is the secretspec dotenv store (dashboard auth).
@@ -99,45 +97,22 @@ in
     SIGNALS_ENGINE_TARGET = "127.0.0.1:50551";
     HERMES_ENGINE_TARGET = "127.0.0.1:50651";
     RUSTFS_DATA_DIR = rustfsDataDir;
-    RUSTFS_ADDRESS = "127.0.0.1:9020";
-    RUSTFS_CONSOLE_ADDRESS = "127.0.0.1:9021";
-    RUSTFS_ACCESS_KEY = "rustfsadmin";
-    RUSTFS_SECRET_KEY = "rustfsadmin";
     RUSTFS_CLIENT_CONFIG_DIR = config.env.DEVENV_STATE + "/rustfs/mc";
   };
 
-  # RustFS (S3-compatible) — overlay binary, process like Signals (not
-  # services.rustfs). Objects under $RUSTFS_DATA_DIR; API :9020 / console :9021.
-  processes.rustfs = {
-    exec = ''
-      set -euo pipefail
-      DATA_DIR="''${RUSTFS_DATA_DIR:-${rustfsDataDir}}"
-      ADDRESS="''${RUSTFS_ADDRESS:-127.0.0.1:9020}"
-      CONSOLE="''${RUSTFS_CONSOLE_ADDRESS:-127.0.0.1:9021}"
-      ACCESS="''${RUSTFS_ACCESS_KEY:-rustfsadmin}"
-      SECRET="''${RUSTFS_SECRET_KEY:-rustfsadmin}"
-      mkdir -p "$DATA_DIR"
-      echo "Starting Hermes RustFS object store"
-      echo "  data    $DATA_DIR"
-      echo "  S3 API  http://$ADDRESS  (path-style; mc alias local)"
-      echo "  console http://$CONSOLE"
-      exec rustfs server \
-        --address "$ADDRESS" \
-        --console-address "$CONSOLE" \
-        --console-enable \
-        --access-key "$ACCESS" \
-        --secret-key "$SECRET" \
-        "$DATA_DIR"
-    '';
-    process-compose = {
-      readiness_probe = {
-        exec.command = "bash -c 'exec 3<>/dev/tcp/127.0.0.1/9020'";
-        initial_delay_seconds = 2;
-        period_seconds = 5;
-        timeout_seconds = 3;
-        success_threshold = 1;
-        failure_threshold = 12;
-      };
+  # https://devenv.sh/services/rustfs/ — native service (ports, env, /health).
+  # Overlay pin in devenv.yaml matches Signals/synth; package comes from pkgs.rustfs.
+  # Port lattice: synth 9000/9001 · signals 9010/9011 · hermes 9020/9021.
+  services.rustfs = {
+    enable = true;
+    package = pkgs.rustfs;
+    bind = "127.0.0.1";
+    port = 9020;
+    consolePort = 9021;
+    accessKey = "rustfsadmin";
+    secretKey = "rustfsadmin";
+    extraEnvironment = {
+      RUSTFS_DATA_DIR = rustfsDataDir;
     };
   };
 
