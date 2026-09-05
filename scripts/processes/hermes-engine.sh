@@ -19,4 +19,7 @@ export HERMES_ENGINE_TARGET="${HERMES_ENGINE_TARGET:-127.0.0.1:50651}"
 export SIGNALS_ENGINE_TARGET="${SIGNALS_ENGINE_TARGET:-127.0.0.1:50551}"
 export PYTHONPATH=""
 
-exec "${VENV}/bin/python" -m hsengine
+# shellcheck source=../lib/hermes-bwrap.sh
+source "$ROOT/scripts/lib/hermes-bwrap.sh"
+HERMES_ROOT="$ROOT"
+hermes_bwrap_exec "${VENV}/bin/python" -m hsengine

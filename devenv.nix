@@ -84,6 +84,7 @@ in
     ffmpeg
     portaudio
     grpcurl
+    bubblewrap # jail engine+dashboard (scripts/lib/hermes-bwrap.sh)
     mc # wrapped alias `local` against the devenv rustfs service
   ] ++ lib.optional (pkgs ? secretspec) pkgs.secretspec;
 
@@ -133,7 +134,7 @@ in
       export HERMES_ADVERTISE_HOST="''${HERMES_ADVERTISE_HOST:-''${SIGNALS_ADVERTISE_HOST:-tinybox.dev.vista.zndx.org}}"
       # Nix profile PYTHONPATH must not leak into the engine (Gaius doctrine).
       export PYTHONPATH=""
-      exec ${config.devenv.root}/.devenv/state/venv/bin/python -m hsengine
+      exec ${config.devenv.root}/scripts/processes/hermes-engine.sh
     '';
     process-compose = {
       readiness_probe = {
@@ -189,6 +190,7 @@ in
     echo "  python -m hsengine     signals lattice engine (:50651, project=hermes)"
     echo "  hermes dashboard       web UI :9119 (LAN + WARP; secretspec auth)"
     echo "  rustfs                 S3 :9020 / console :9021  (mc alias local; $RUSTFS_DATA_DIR)"
+    echo "  bwrap                  engine+dashboard jail (HOME=/home/hermes; HERMES_BWRAP=0 to skip)"
     echo "  node/npm               $(node --version 2>/dev/null || echo missing) / $(npm --version 2>/dev/null || echo missing)"
     echo "  venv                   ${config.devenv.state}/venv  (devenv:python:uv)"
     echo "  pytest tests/ -q       test suite"
@@ -205,6 +207,9 @@ in
     bash -n ${config.devenv.root}/scripts/devenv-enter-checks.sh
     bash -n ${config.devenv.root}/scripts/merge-upstream.sh
     bash -n ${config.devenv.root}/scripts/dashboard-curl.sh
+    bash -n ${config.devenv.root}/scripts/lib/hermes-bwrap.sh
+    bash -n ${config.devenv.root}/scripts/processes/hermes-engine.sh
+    bash -n ${config.devenv.root}/scripts/processes/hermes-dashboard.sh
   '';
 
   # See full reference at https://devenv.sh/reference/options/

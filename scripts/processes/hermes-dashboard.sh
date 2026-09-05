@@ -39,4 +39,7 @@ if [[ -z "${HERMES_DASHBOARD_BASIC_AUTH_PASSWORD:-}" && -z "${HERMES_DASHBOARD_B
 fi
 
 echo "hermes dashboard bind=${HOST}:${PORT} public_url=${HERMES_DASHBOARD_PUBLIC_URL}"
-exec "$HERMES" dashboard --host "$HOST" --port "$PORT" --no-open
+# shellcheck source=../lib/hermes-bwrap.sh
+source "$ROOT/scripts/lib/hermes-bwrap.sh"
+HERMES_ROOT="$ROOT"
+hermes_bwrap_exec "$HERMES" dashboard --host "$HOST" --port "$PORT" --no-open

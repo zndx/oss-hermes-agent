@@ -13,6 +13,7 @@ face; Nautilus instance follows Gaius (read-only adoption only).
 | advertised UI (`Status.surfaces`) | `http://tinybox.dev.vista.zndx.org:9119` (`HERMES_ADVERTISE_HOST` / `HERMES_PRIMARY_UI`) |
 | dashboard bind | `0.0.0.0:9119` (LAN `192.168.1.55` + WARP; basic auth via secretspec) |
 | Files UI root | this checkout (`HERMES_DASHBOARD_FILES_ROOT`; not `$HOME`) |
+| Process jail | bubblewrap around engine + dashboard (`scripts/lib/hermes-bwrap.sh`). Fake `HOME=/home/hermes` with host `~/.hermes` bind-mounted. `HERMES_BWRAP=0` skips. |
 | federation peers | gaius `:50051` (`thinking`) · aegir `:50151` (`instruct`) |
 | Nautilus instance | `config/supervision/hermes.textproto` (observe-only; Gaius leads the supervisor) |
 | Object store | devenv `services.rustfs` — S3 `:9020` / console `:9021` (`/raid/build/hermes/data`; buckets `hermes-artifacts`, `hermes-sessions`). Overlay pin matches Signals/synth. Lattice peers keep their own: synth `:9000`, Signals `:9010`. |
