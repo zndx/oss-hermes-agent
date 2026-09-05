@@ -44,6 +44,7 @@
   # Binaries the agent shells out to at runtime (mirrors nix/packages.nix),
   # plus portaudio for the `voice` extra's sounddevice bindings.
   packages = with pkgs; [
+    gh
     git
     ripgrep
     openssh
@@ -130,8 +131,14 @@
     echo "  venv                   ${config.devenv.state}/venv  (devenv:python:uv)"
     echo "  pytest tests/ -q       test suite"
     echo "  hermes-browser-tools   optional: npm browser tooling"
-    _sp="$HOME/local/src/wxs/signals-plugins/scripts/install.sh"
-    if [ -x "$_sp" ]; then "$_sp" --quiet || true; fi
+    _home="''${HERMES_HOME:-$HOME/.hermes}"
+    if command -v hermes >/dev/null 2>&1; then
+      for _p in signals-oip signals-memory signals-compact; do
+        if [ ! -e "$_home/plugins/$_p" ]; then
+          hermes plugins install "weathership/signals-plugins/plugins/$_p" --no-enable || true
+        fi
+      done
+    fi
   '';
 
   # https://devenv.sh/tests/

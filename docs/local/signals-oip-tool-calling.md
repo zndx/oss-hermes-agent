@@ -118,12 +118,14 @@ Duplicates Complete. Grows the waist. Complete already has the messages.
 ## Hermes plugins (standalone repo)
 
 Do **not** grow core (`run_agent.py`, toolsets) or in-tree `plugins/memory/`.
-The three plugins live in `~/local/src/wxs/signals-plugins` and install like
-rtk / hermes-lcm:
+The three plugins live in
+[weathership/signals-plugins](https://github.com/weathership/signals-plugins)
+and install like other third-party Hermes plugins:
 
 ```bash
-~/local/src/wxs/signals-plugins/scripts/install.sh
-# or: hermes plugins install file://$PWD#plugins/signals-oip
+hermes plugins install weathership/signals-plugins/plugins/signals-oip --enable
+hermes plugins install weathership/signals-plugins/plugins/signals-memory --enable
+hermes plugins install weathership/signals-plugins/plugins/signals-compact --enable
 ```
 
 | Plugin | Hermes kind | Activate |
