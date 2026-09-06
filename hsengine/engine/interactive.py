@@ -47,6 +47,17 @@ def _cfg(path: str, default: str) -> str:
 def _cerebras_key() -> str:
     key = (os.environ.get("CEREBRAS_API_KEY") or "").strip()
     if not key:
+        try:
+            from hermes_constants import get_hermes_home
+
+            env_path = get_hermes_home() / ".env"
+            for line in env_path.read_text().splitlines():
+                if line.startswith("CEREBRAS_API_KEY="):
+                    key = line.split("=", 1)[1].strip().strip("'").strip('"')
+                    break
+        except OSError:
+            key = ""
+    if not key:
         raise RuntimeError(
             "DENY: CEREBRAS_API_KEY required to enter agent-rtc interactive posture"
         )
@@ -70,11 +81,12 @@ def complete_cerebras(
     system_prompt: str = "",
     max_tokens: int = 4096,
     temperature: float = 0.7,
+    reasoning_effort: str | None = None,
 ) -> CompleteResult:
     key = _cerebras_key()
     model = _cfg("hermes.engine.webrtc.interactive.cerebras_model", "qwen-3.8-27b")
     base = _cfg("hermes.engine.webrtc.interactive.cerebras_url", "https://api.cerebras.ai/v1").rstrip("/")
-    effort = _cfg("hermes.engine.webrtc.interactive.reasoning_effort", "low")
+    effort = reasoning_effort or _cfg("hermes.engine.webrtc.interactive.reasoning_effort", "low")
     messages: list[dict[str, str]] = []
     if system_prompt:
         messages.append({"role": "system", "content": system_prompt})
@@ -131,7 +143,9 @@ def _moshi_on() -> None:
     url = _control_url().rstrip("/")
     with httpx.Client(timeout=180.0) as client:
         r = client.post(f"{url}/interactive/on")
-        r.raise_for_status()
+        if r.status_code >= 400:
+            detail = r.text
+            raise RuntimeError(f"moshi supervisor {r.status_code}: {detail}")
         body = r.json()
     if not body.get("ok"):
         raise RuntimeError(body.get("error") or "moshi supervisor refused activate")

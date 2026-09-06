@@ -51,7 +51,7 @@ def test_complete_cerebras_posts_qwen38(monkeypatch):
     assert sent.kwargs["json"]["model"] == "qwen-3.8-27b"
 
 
-def test_cerebras_thinking_yaml_is_zero_gpu_subscription():
+def test_cerebras_thinking_yaml_is_zero_gpu_token_metered():
     raw = cerebras_thinking_yaml()
     assert "yunikorn.apache.org/queue: root.external.token-metered" in raw
     assert CEREBRAS_QUEUE == "root.external.token-metered"

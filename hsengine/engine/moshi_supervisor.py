@@ -38,15 +38,24 @@ _mu = threading.Lock()
 _worker: subprocess.Popen | None = None
 
 
+def _opus_lib() -> str:
+    profile = ROOT / ".devenv" / "profile" / "lib" / "libopus.so.0"
+    if profile.is_file():
+        return str(profile.parent)
+    for path in sorted(Path("/nix/store").glob("*-libopus-*/lib/libopus.so.0")):
+        return str(path.parent)
+    return ""
+
+
 def _moshi_env(gpu: int) -> dict[str, str]:
     env = os.environ.copy()
-    cargo = Path.home() / ".cargo" / "env"
     env["PATH"] = f"{Path.home() / '.cargo' / 'bin'}:{env.get('PATH', '')}"
     cuda = env.get("CUDA_HOME", "/usr/local/cuda")
     env["CUDA_HOME"] = cuda
     env["CUDA_VISIBLE_DEVICES"] = str(gpu)
+    extra = _opus_lib()
     env["LD_LIBRARY_PATH"] = (
-        f"{cuda}/lib64:{ROOT}/.devenv/profile/lib:{ROOT}/.devenv/state/venv/lib:"
+        f"{extra}:{cuda}/lib64:{ROOT}/.devenv/profile/lib:{ROOT}/.devenv/state/venv/lib:"
         f"/lib/x86_64-linux-gnu:/usr/lib/x86_64-linux-gnu:{env.get('LD_LIBRARY_PATH', '')}"
     )
     env["HF_HOME"] = env.get("HF_HOME", "/raid/cache/huggingface")
