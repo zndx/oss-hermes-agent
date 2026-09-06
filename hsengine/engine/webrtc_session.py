@@ -119,6 +119,7 @@ class WebRtcHub:
     def __init__(self) -> None:
         self._pcs: dict[str, object] = {}
         self._tracks: dict[str, list[object]] = {}
+        self._tasks: dict[str, list[asyncio.Task]] = {}
 
     async def offer(self, sdp: str, typ: str = "offer") -> dict[str, str]:
         try:
@@ -144,11 +145,19 @@ class WebRtcHub:
         session_id = uuid.uuid4().hex[:12]
         self._pcs[session_id] = pc
 
+        from hsengine.engine.webrtc_captions import CaptionBoard, caption_track
+        from hsengine.engine.webrtc_stt import follow_audio, load_model, stt_available
+
+        board = CaptionBoard()
+        loop = asyncio.get_running_loop()
+        if stt_available():
+            loop.run_in_executor(None, load_model)
         video, audio = looping_tracks(src)
         tracks: list[object] = []
         if video is not None:
-            pc.addTrack(video)  # type: ignore[arg-type]
-            tracks.append(video)
+            painted = caption_track(video, board) if stt_available() else video
+            pc.addTrack(painted)  # type: ignore[arg-type]
+            tracks.append(painted)
         if audio is not None:
             pc.addTrack(audio)  # type: ignore[arg-type]
             tracks.append(audio)
@@ -166,6 +175,10 @@ class WebRtcHub:
         @pc.on("track")
         def _on_track(track) -> None:
             log.info("webrtc %s inbound %s", session_id, track.kind)
+            if track.kind != "audio" or not stt_available():
+                return
+            task = loop.create_task(follow_audio(track, board))
+            self._tasks.setdefault(session_id, []).append(task)
 
         await pc.setRemoteDescription(RTCSessionDescription(sdp=sdp, type=typ or "offer"))
         answer = await pc.createAnswer()
@@ -185,6 +198,8 @@ class WebRtcHub:
         return True
 
     async def _drop(self, session_id: str) -> None:
+        for task in self._tasks.pop(session_id, []):
+            task.cancel()
         for track in self._tracks.pop(session_id, []):
             try:
                 track.stop()  # type: ignore[union-attr]

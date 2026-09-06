@@ -11,3 +11,5 @@ and is not committed (16s H.264, ~7 MiB). A copy may also sit at
 
 Override with `HERMES_WEBRTC_VIDEO` (captured in `config/base.conf`).
 Signaling is `hermes.engine.HermesEngine/WebRtcOffer`, not `zndx.engine.v1`.
+Inbound mic audio is transcribed with a warm `tiny.en` faster-whisper
+and burned into the outbound video as captions.

@@ -123,6 +123,8 @@ in
     HERMES_DASHBOARD_FILES_ROOT = config.devenv.root;
     RUSTFS_DATA_DIR = rustfsDataDir;
     RUSTFS_CLIENT_CONFIG_DIR = config.env.DEVENV_STATE + "/rustfs/mc";
+    # faster-whisper / tiny.en weights. Bound into the engine jail.
+    HF_HOME = "/raid/cache/huggingface";
   };
 
   # TLS front for LAN/WARP browsers (getUserMedia needs a secure context).

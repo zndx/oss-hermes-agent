@@ -76,6 +76,17 @@ hermes_bwrap_exec() {
     args+=(--bind "$rustfs" "$rustfs")
   fi
 
+  local n
+  for n in /dev/nvidia*; do
+    [[ -e "$n" ]] || continue
+    args+=(--dev-bind "$n" "$n")
+  done
+  hf="${HF_HOME:-}"
+  if [[ -n "$hf" ]]; then
+    mkdir -p "$hf"
+    args+=(--bind "$hf" "$hf")
+  fi
+
   # install.sh developer checkouts symlink $HERMES_HOME/plugins/<name> at a
   # tree outside the jail (this checkout + ~/.hermes). Follow those links.
   local dest src

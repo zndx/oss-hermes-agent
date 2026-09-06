@@ -8,7 +8,7 @@ resolution-markers = [
 ]
 
 [options]
-exclude-newer = "2026-08-23T19:04:44.73828297Z"
+exclude-newer = "2026-08-23T19:56:14.596470215Z"
 exclude-newer-span = "P14D"
 
 [options.exclude-newer-package]
@@ -1896,6 +1896,7 @@ edge-tts = [
 ]
 engine = [
     { name = "aiortc" },
+    { name = "faster-whisper" },
     { name = "grpcio" },
     { name = "grpcio-reflection" },
     { name = "grpcio-tools" },
@@ -1971,6 +1972,7 @@ parallel-web = [
 ]
 signals = [
     { name = "aiortc" },
+    { name = "faster-whisper" },
     { name = "grpcio" },
     { name = "grpcio-reflection" },
     { name = "grpcio-tools" },
@@ -2090,6 +2092,7 @@ requires-dist = [
     { name = "fal-client", marker = "extra == 'fal'", specifier = "==0.13.1" },
     { name = "fastapi", specifier = ">=0.104.0,<1" },
     { name = "fastapi", marker = "extra == 'web'", specifier = "==0.133.1" },
+    { name = "faster-whisper", marker = "extra == 'engine'", specifier = "==1.2.1" },
     { name = "faster-whisper", marker = "extra == 'voice'", specifier = "==1.2.1" },
     { name = "fire", specifier = "==0.7.1" },
     { name = "firecrawl-anydoc", specifier = "==0.2.4" },

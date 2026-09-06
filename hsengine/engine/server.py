@@ -122,7 +122,11 @@ def _status_endpoints(dash: probe.SurfaceProbe) -> list:
 
 class HermesEngineServicer(pb_grpc.HermesEngineServicer):
     async def EngineStatus(self, request, context):
+        from hsengine.engine.webrtc_stt import stt_available
+
         capabilities = [CAPABILITY_AGENT, "webrtc"]
+        if stt_available():
+            capabilities.append("stt")
         if federation.federation_peers():
             capabilities.append(CAPABILITY_INSTRUCT)
         return pb.EngineStatusReply(
