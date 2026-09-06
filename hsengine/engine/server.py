@@ -318,10 +318,18 @@ async def serve() -> None:
             await asyncio.sleep(interval)
 
     hb = asyncio.create_task(_announce_loop(), name="hsengine-announce")
+    # Engine-side watcher of coordination Activities at Signals — this engine
+    # is the only Hermes process that speaks to the Signals engine; the view
+    # is re-exposed on ServerQuery kind=ACTIVITIES and as ActivityEvents.
+    from hsengine.engine import coordination
+
+    watcher = coordination.start_watcher()
     try:
         await server.wait_for_termination()
     finally:
         hb.cancel()
+        if watcher is not None and watcher._task is not None:
+            watcher._task.cancel()
 
 
 def main() -> None:

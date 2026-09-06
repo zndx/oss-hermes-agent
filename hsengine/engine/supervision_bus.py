@@ -26,6 +26,7 @@ KIND_INCIDENT = "incident"
 KIND_SERVING = "serving"
 KIND_DIRECTIVE_RESULT = "directive_result"
 KIND_GOODBYE = "goodbye"
+KIND_ACTIVITY = "activity"  # coordination Activities as this engine saw them (ActivityEvent)
 
 
 def now_ms() -> int:

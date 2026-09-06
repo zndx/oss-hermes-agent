@@ -24,6 +24,7 @@ from hsengine.config import get_int, get_str
 from hsengine.engine.generated.zndx.supervision.v1 import supervision_pb2 as sv
 from hsengine.engine.generated.zndx.supervision.v1 import supervision_pb2_grpc as sv_grpc
 from hsengine.engine.supervision_bus import (
+    KIND_ACTIVITY,
     KIND_DIRECTIVE_RESULT,
     KIND_GOODBYE,
     KIND_SERVING,
@@ -103,6 +104,28 @@ def event_to_proto(ev: SupervisionEvent, epoch: str) -> sv.EngineEvent:
             reason=int(p.get("reason") or sv.GOODBYE_REASON_UNSPECIFIED),
             note=str(p.get("note") or ""),
         ))
+    elif ev.kind == KIND_ACTIVITY:
+        # A coordination Activity as THIS engine saw it (learned from Signals
+        # or declared here). The resident never reads Airflow or Signals.
+        act = sv.ActivityEvent(
+            activity_id=str(p.get("activity_id") or ""),
+            kind=str(p.get("activity_kind") or ""),
+            peer=str(p.get("peer") or ""),
+            owner=str(p.get("owner") or ""),
+            dag_id=str(p.get("dag_id") or ""),
+            run_id=str(p.get("run_id") or ""),
+            state=str(p.get("state") or ""),
+            declared_ns=int(p.get("declared_ns") or 0),
+            horizon_ns=int(p.get("horizon_ns") or 0),
+            ended_ns=int(p.get("ended_ns") or 0),
+            reason=str(p.get("reason") or "")[:500],
+            transition=str(p.get("transition") or "observed"),
+        )
+        act.precludes.extend(str(x) for x in (p.get("precludes") or []))
+        for k, v in (p.get("postures") or {}).items():
+            act.postures[str(k)] = str(v)
+        act.ceded.extend(str(x) for x in (p.get("ceded") or []))
+        out.activity.CopyFrom(act)
     return out
 
 

@@ -132,4 +132,10 @@ def local_response(kind: int, *, dashboard_healthy: bool = True) -> zpb.ServerQu
         resp.surfaces.extend(surfaces.local_surfaces(dashboard_healthy))
     if kind == zpb.SERVER_QUERY_KIND_SOURCE_POSTURE:
         resp.posture.CopyFrom(build_source_posture(project=PROJECT))
+    if kind == zpb.SERVER_QUERY_KIND_ACTIVITIES:
+        # Coordination Activities this engine knows (its own + peers', learned
+        # from Signals). Local processes read them HERE, never from Signals.
+        from hsengine.engine import coordination
+
+        resp.activities.extend(coordination.activities_proto())
     return resp

@@ -2,6 +2,13 @@
 
 Enter on the first RTC session, leave on the last hangup. No silent
 fallback to local Qwen thinking or tiny.en.
+
+The posture is DECLARED to the federation as a coordination Activity
+(kind ``interactive_session``) through this engine → Signals → Airflow, with
+postures peers honour (gaius cedes its thinking uptime while the activity
+runs) — never by poking a peer's engine directly. A session that cannot be
+declared is denied. Leaving releases the activity; peers restore their own
+desired sets from the release (or from the horizon if Signals is unreachable).
 """
 from __future__ import annotations
 
@@ -11,9 +18,8 @@ import os
 import threading
 import httpx
 
+from hsengine.engine import coordination
 from hsengine.engine.federation import CompleteResult
-from hsengine.engine.generated.zndx.engine.v1 import engine_pb2 as zpb
-from hsengine.engine.generated.zndx.engine.v1 import engine_pb2_grpc as zpb_grpc
 from hsengine.engine.yk_sentinel import (
     CEREBRAS_WORKLOAD_ID,
     apply_cerebras_thinking,
@@ -27,11 +33,17 @@ log = logging.getLogger("hsengine.engine.interactive")
 _mu = threading.Lock()
 _refcount = 0
 _active = False
+_lease: coordination.ActivityLease | None = None
 
 
 def is_active() -> bool:
     with _mu:
         return _active
+
+
+def current_activity() -> dict | None:
+    with _mu:
+        return dict(_lease.activity) if _lease is not None else None
 
 
 def _cfg(path: str, default: str) -> str:
@@ -66,13 +78,6 @@ def _cerebras_key() -> str:
 
 def _control_url() -> str:
     return _cfg("hermes.engine.webrtc.interactive.control", "http://127.0.0.1:5081")
-
-
-def _gaius_target() -> str:
-    from hsengine.engine import federation
-
-    peers = federation.federation_peers()
-    return peers[0] if peers else "127.0.0.1:50051"
 
 
 def complete_cerebras(
@@ -122,23 +127,6 @@ def complete_cerebras(
     )
 
 
-def _yield_gaius_thinking() -> None:
-    import grpc
-
-    target = _gaius_target()
-    # First configured peer is gaius thinking in base.conf.
-    if "50151" in target:
-        target = "127.0.0.1:50051"
-    wid = _cfg("hermes.engine.webrtc.interactive.thinking_workload", "gaius-thinking")
-    with grpc.insecure_channel(target) as ch:
-        stub = zpb_grpc.EngineStub(ch)
-        reply = stub.Yield(
-            zpb.YieldRequest(workload_id=wid, reason=zpb.YIELD_REASON_PREEMPTED),
-            timeout=15,
-        )
-    log.info("yielded %s ended=%s msg=%s", wid, reply.process_ended, reply.message)
-
-
 def _moshi_on() -> None:
     url = _control_url().rstrip("/")
     with httpx.Client(timeout=180.0) as client:
@@ -162,45 +150,60 @@ def _moshi_off() -> None:
         log.warning("moshi supervisor deactivate failed", exc_info=True)
 
 
-def enter() -> None:
-    global _refcount, _active
+def enter(owner: str = "webrtc") -> None:
+    """Enter the interactive posture. Order: declare the Activity to the
+    federation (via this engine → Signals), then the token-metered sentinel,
+    then moshi. Any failure releases what was declared and re-raises."""
+    global _refcount, _active, _lease
     with _mu:
         _refcount += 1
         if _refcount > 1 and _active:
             return
     _cerebras_key()
+    lease: coordination.ActivityLease | None = None
     try:
-        _yield_gaius_thinking()
+        lease = coordination.declare_interactive(owner)
         apply_cerebras_thinking()
         wait_admitted(CEREBRAS_WORKLOAD_ID, timeout_s=60)
         _moshi_on()
-    except Exception:
+    except Exception as e:
         with _mu:
             _refcount = max(0, _refcount - 1)
             _active = False
+            _lease = None
         _moshi_off()
         delete_sentinel(CEREBRAS_WORKLOAD_ID)
+        if lease is not None:
+            lease.release(f"aborted: {str(e)[:120]}")
         raise
+    lease.start_renewing()
     with _mu:
         _active = True
-    log.info("agent-rtc interactive posture on")
+        _lease = lease
+    log.info(
+        "agent-rtc interactive posture on (activity %s declared to the federation; peers cede per postures)",
+        lease.activity_id,
+    )
 
 
-def leave() -> None:
-    global _refcount, _active
+def leave(outcome: str = "hangup") -> None:
+    global _refcount, _active, _lease
     with _mu:
         _refcount = max(0, _refcount - 1)
         if _refcount > 0:
             return
         _active = False
+        lease, _lease = _lease, None
     _moshi_off()
     delete_sentinel(CEREBRAS_WORKLOAD_ID)
-    log.info("agent-rtc interactive posture off; Gaius thinking-ready may restore local Qwen")
+    if lease is not None:
+        lease.release(outcome)
+    log.info("agent-rtc interactive posture off; activity released — peers restore their desired sets")
 
 
-async def enter_async() -> None:
-    await asyncio.to_thread(enter)
+async def enter_async(owner: str = "webrtc") -> None:
+    await asyncio.to_thread(enter, owner)
 
 
-async def leave_async() -> None:
-    await asyncio.to_thread(leave)
+async def leave_async(outcome: str = "hangup") -> None:
+    await asyncio.to_thread(leave, outcome)

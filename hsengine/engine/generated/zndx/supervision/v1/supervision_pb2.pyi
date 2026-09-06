@@ -50,6 +50,7 @@ class ExpectationCategory(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
     EXPECTATION_CATEGORY_CHRONIC_AUDIT: _ClassVar[ExpectationCategory]
     EXPECTATION_CATEGORY_OPERATOR_WINDOW: _ClassVar[ExpectationCategory]
     EXPECTATION_CATEGORY_TRANSIENT: _ClassVar[ExpectationCategory]
+    EXPECTATION_CATEGORY_COORDINATION: _ClassVar[ExpectationCategory]
 
 class Channel(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
     __slots__ = ()
@@ -200,6 +201,7 @@ EXPECTATION_CATEGORY_JUDGED: ExpectationCategory
 EXPECTATION_CATEGORY_CHRONIC_AUDIT: ExpectationCategory
 EXPECTATION_CATEGORY_OPERATOR_WINDOW: ExpectationCategory
 EXPECTATION_CATEGORY_TRANSIENT: ExpectationCategory
+EXPECTATION_CATEGORY_COORDINATION: ExpectationCategory
 CHANNEL_UNSPECIFIED: Channel
 CHANNEL_LOG: Channel
 CHANNEL_AGENDA_EVENT: Channel
@@ -955,8 +957,49 @@ class Goodbye(_message.Message):
     note: str
     def __init__(self, reason: _Optional[_Union[GoodbyeReason, str]] = ..., note: _Optional[str] = ...) -> None: ...
 
+class ActivityEvent(_message.Message):
+    __slots__ = ("activity_id", "kind", "peer", "owner", "dag_id", "run_id", "state", "declared_ns", "horizon_ns", "ended_ns", "precludes", "postures", "reason", "transition", "ceded")
+    class PosturesEntry(_message.Message):
+        __slots__ = ("key", "value")
+        KEY_FIELD_NUMBER: _ClassVar[int]
+        VALUE_FIELD_NUMBER: _ClassVar[int]
+        key: str
+        value: str
+        def __init__(self, key: _Optional[str] = ..., value: _Optional[str] = ...) -> None: ...
+    ACTIVITY_ID_FIELD_NUMBER: _ClassVar[int]
+    KIND_FIELD_NUMBER: _ClassVar[int]
+    PEER_FIELD_NUMBER: _ClassVar[int]
+    OWNER_FIELD_NUMBER: _ClassVar[int]
+    DAG_ID_FIELD_NUMBER: _ClassVar[int]
+    RUN_ID_FIELD_NUMBER: _ClassVar[int]
+    STATE_FIELD_NUMBER: _ClassVar[int]
+    DECLARED_NS_FIELD_NUMBER: _ClassVar[int]
+    HORIZON_NS_FIELD_NUMBER: _ClassVar[int]
+    ENDED_NS_FIELD_NUMBER: _ClassVar[int]
+    PRECLUDES_FIELD_NUMBER: _ClassVar[int]
+    POSTURES_FIELD_NUMBER: _ClassVar[int]
+    REASON_FIELD_NUMBER: _ClassVar[int]
+    TRANSITION_FIELD_NUMBER: _ClassVar[int]
+    CEDED_FIELD_NUMBER: _ClassVar[int]
+    activity_id: str
+    kind: str
+    peer: str
+    owner: str
+    dag_id: str
+    run_id: str
+    state: str
+    declared_ns: int
+    horizon_ns: int
+    ended_ns: int
+    precludes: _containers.RepeatedScalarFieldContainer[str]
+    postures: _containers.ScalarMap[str, str]
+    reason: str
+    transition: str
+    ceded: _containers.RepeatedScalarFieldContainer[str]
+    def __init__(self, activity_id: _Optional[str] = ..., kind: _Optional[str] = ..., peer: _Optional[str] = ..., owner: _Optional[str] = ..., dag_id: _Optional[str] = ..., run_id: _Optional[str] = ..., state: _Optional[str] = ..., declared_ns: _Optional[int] = ..., horizon_ns: _Optional[int] = ..., ended_ns: _Optional[int] = ..., precludes: _Optional[_Iterable[str]] = ..., postures: _Optional[_Mapping[str, str]] = ..., reason: _Optional[str] = ..., transition: _Optional[str] = ..., ceded: _Optional[_Iterable[str]] = ...) -> None: ...
+
 class EngineEvent(_message.Message):
-    __slots__ = ("seq", "at_unix_ms", "epoch", "replayed", "hello", "heartbeat", "task", "admission", "position", "objective", "incident", "serving", "directive_result", "replay_complete", "goodbye")
+    __slots__ = ("seq", "at_unix_ms", "epoch", "replayed", "hello", "heartbeat", "task", "admission", "position", "objective", "incident", "serving", "directive_result", "replay_complete", "goodbye", "activity")
     SEQ_FIELD_NUMBER: _ClassVar[int]
     AT_UNIX_MS_FIELD_NUMBER: _ClassVar[int]
     EPOCH_FIELD_NUMBER: _ClassVar[int]
@@ -972,6 +1015,7 @@ class EngineEvent(_message.Message):
     DIRECTIVE_RESULT_FIELD_NUMBER: _ClassVar[int]
     REPLAY_COMPLETE_FIELD_NUMBER: _ClassVar[int]
     GOODBYE_FIELD_NUMBER: _ClassVar[int]
+    ACTIVITY_FIELD_NUMBER: _ClassVar[int]
     seq: int
     at_unix_ms: int
     epoch: str
@@ -987,7 +1031,8 @@ class EngineEvent(_message.Message):
     directive_result: DirectiveResult
     replay_complete: ReplayComplete
     goodbye: Goodbye
-    def __init__(self, seq: _Optional[int] = ..., at_unix_ms: _Optional[int] = ..., epoch: _Optional[str] = ..., replayed: _Optional[bool] = ..., hello: _Optional[_Union[EngineHello, _Mapping]] = ..., heartbeat: _Optional[_Union[EngineHeartbeat, _Mapping]] = ..., task: _Optional[_Union[TaskLifecycle, _Mapping]] = ..., admission: _Optional[_Union[AdmissionEvent, _Mapping]] = ..., position: _Optional[_Union[PositionReport, _Mapping]] = ..., objective: _Optional[_Union[ObjectiveVerdict, _Mapping]] = ..., incident: _Optional[_Union[IncidentEvent, _Mapping]] = ..., serving: _Optional[_Union[ServingEvent, _Mapping]] = ..., directive_result: _Optional[_Union[DirectiveResult, _Mapping]] = ..., replay_complete: _Optional[_Union[ReplayComplete, _Mapping]] = ..., goodbye: _Optional[_Union[Goodbye, _Mapping]] = ...) -> None: ...
+    activity: ActivityEvent
+    def __init__(self, seq: _Optional[int] = ..., at_unix_ms: _Optional[int] = ..., epoch: _Optional[str] = ..., replayed: _Optional[bool] = ..., hello: _Optional[_Union[EngineHello, _Mapping]] = ..., heartbeat: _Optional[_Union[EngineHeartbeat, _Mapping]] = ..., task: _Optional[_Union[TaskLifecycle, _Mapping]] = ..., admission: _Optional[_Union[AdmissionEvent, _Mapping]] = ..., position: _Optional[_Union[PositionReport, _Mapping]] = ..., objective: _Optional[_Union[ObjectiveVerdict, _Mapping]] = ..., incident: _Optional[_Union[IncidentEvent, _Mapping]] = ..., serving: _Optional[_Union[ServingEvent, _Mapping]] = ..., directive_result: _Optional[_Union[DirectiveResult, _Mapping]] = ..., replay_complete: _Optional[_Union[ReplayComplete, _Mapping]] = ..., goodbye: _Optional[_Union[Goodbye, _Mapping]] = ..., activity: _Optional[_Union[ActivityEvent, _Mapping]] = ...) -> None: ...
 
 class Subscribe(_message.Message):
     __slots__ = ("supervisor_id", "project", "spec_version", "spec_sha256", "since_unix_ms", "resume_session", "resume_seq", "capabilities")

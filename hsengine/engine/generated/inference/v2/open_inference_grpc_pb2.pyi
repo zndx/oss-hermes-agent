@@ -14,7 +14,7 @@ class ServerLiveResponse(_message.Message):
     __slots__ = ("live",)
     LIVE_FIELD_NUMBER: _ClassVar[int]
     live: bool
-    def __init__(self, live: bool = ...) -> None: ...
+    def __init__(self, live: _Optional[bool] = ...) -> None: ...
 
 class ServerReadyRequest(_message.Message):
     __slots__ = ()
@@ -24,7 +24,7 @@ class ServerReadyResponse(_message.Message):
     __slots__ = ("ready",)
     READY_FIELD_NUMBER: _ClassVar[int]
     ready: bool
-    def __init__(self, ready: bool = ...) -> None: ...
+    def __init__(self, ready: _Optional[bool] = ...) -> None: ...
 
 class ModelReadyRequest(_message.Message):
     __slots__ = ("name", "version")
@@ -38,7 +38,7 @@ class ModelReadyResponse(_message.Message):
     __slots__ = ("ready",)
     READY_FIELD_NUMBER: _ClassVar[int]
     ready: bool
-    def __init__(self, ready: bool = ...) -> None: ...
+    def __init__(self, ready: _Optional[bool] = ...) -> None: ...
 
 class ServerMetadataRequest(_message.Message):
     __slots__ = ()
@@ -208,7 +208,7 @@ class InferParameter(_message.Message):
     string_param: str
     double_param: float
     uint64_param: int
-    def __init__(self, bool_param: bool = ..., int64_param: _Optional[int] = ..., string_param: _Optional[str] = ..., double_param: _Optional[float] = ..., uint64_param: _Optional[int] = ...) -> None: ...
+    def __init__(self, bool_param: _Optional[bool] = ..., int64_param: _Optional[int] = ..., string_param: _Optional[str] = ..., double_param: _Optional[float] = ..., uint64_param: _Optional[int] = ...) -> None: ...
 
 class InferTensorContents(_message.Message):
     __slots__ = ("bool_contents", "int_contents", "int64_contents", "uint_contents", "uint64_contents", "fp32_contents", "fp64_contents", "bytes_contents")

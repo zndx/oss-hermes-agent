@@ -149,7 +149,7 @@ class WebRtcHub:
         from hsengine.engine.webrtc_captions import CaptionBoard, caption_track
         from hsengine.engine.webrtc_stt import follow_audio, stt_available
 
-        await interactive.enter_async()
+        await interactive.enter_async(owner=f"webrtc:{session_id}")
         try:
             board = CaptionBoard()
             loop = asyncio.get_running_loop()

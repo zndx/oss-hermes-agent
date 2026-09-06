@@ -35,6 +35,15 @@ python -m grpc_tools.protoc \
   --python_out="$OUT" --pyi_out="$OUT" --grpc_python_out="$OUT" \
   "$ZNDX/zndx/supervision/v1/supervision.proto"
 
+# The Signals engine's scheduler face: the ENGINE declares coordination
+# Activities there (Declare/Renew/Release/Watch) on behalf of local processes
+# such as the interactive session. Local processes never import this stub.
+echo "Compiling zndx.scheduler.v1.Scheduler"
+python -m grpc_tools.protoc \
+  -I "$ZNDX" \
+  --python_out="$OUT" --pyi_out="$OUT" --grpc_python_out="$OUT" \
+  "$ZNDX/zndx/scheduler/v1/scheduler.proto"
+
 echo "Compiling inference.GRPCInferenceService (OIP)"
 python -m grpc_tools.protoc \
   -I "$ZNDX" \
@@ -44,6 +53,7 @@ python -m grpc_tools.protoc \
 mkdir -p \
   "$OUT/zndx/engine/v1" \
   "$OUT/zndx/supervision/v1" \
+  "$OUT/zndx/scheduler/v1" \
   "$OUT/inference/v2"
 touch \
   "$OUT/zndx/__init__.py" \
@@ -51,6 +61,8 @@ touch \
   "$OUT/zndx/engine/v1/__init__.py" \
   "$OUT/zndx/supervision/__init__.py" \
   "$OUT/zndx/supervision/v1/__init__.py" \
+  "$OUT/zndx/scheduler/__init__.py" \
+  "$OUT/zndx/scheduler/v1/__init__.py" \
   "$OUT/inference/__init__.py" \
   "$OUT/inference/v2/__init__.py"
 
@@ -62,6 +74,13 @@ sed -i 's/^from zndx\.engine\.v1 import/from hsengine.engine.generated.zndx.engi
 if [[ -f "$OUT/zndx/supervision/v1/supervision_pb2_grpc.py" ]]; then
   sed -i 's/^from zndx\.supervision\.v1 import/from hsengine.engine.generated.zndx.supervision.v1 import/' \
     "$OUT/zndx/supervision/v1/supervision_pb2_grpc.py"
+fi
+if [[ -f "$OUT/zndx/scheduler/v1/scheduler_pb2_grpc.py" ]]; then
+  sed -i 's/^from zndx\.scheduler\.v1 import/from hsengine.engine.generated.zndx.scheduler.v1 import/' \
+    "$OUT/zndx/scheduler/v1/scheduler_pb2_grpc.py"
+  # scheduler.proto imports engine.proto: the pb2 module resolves it absolutely.
+  sed -i 's/^from zndx\.engine\.v1 import engine_pb2 as /from hsengine.engine.generated.zndx.engine.v1 import engine_pb2 as /' \
+    "$OUT/zndx/scheduler/v1/scheduler_pb2.py" "$OUT/zndx/scheduler/v1/scheduler_pb2.pyi"
 fi
 if [[ -f "$OUT/inference/v2/open_inference_grpc_pb2_grpc.py" ]]; then
   sed -i 's/^from inference\.v2 import/from hsengine.engine.generated.inference.v2 import/' \
