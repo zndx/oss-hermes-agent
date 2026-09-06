@@ -215,6 +215,33 @@ in
     };
   };
 
+  # Resident Nautilus — same binary as Gaius, Hermes instance on :50661.
+  # Does not wait for a healthy engine (observer outlives subject).
+  processes.nautilus = {
+    exec = ''
+      exec ${config.devenv.root}/scripts/processes/nautilus.sh
+    '';
+    process-compose = {
+      depends_on.engine.condition = "process_started";
+      availability = {
+        restart = "on_failure";
+        backoff_seconds = 10;
+        max_restarts = 20;
+      };
+      readiness_probe = {
+        exec.command = ''
+          BIN="''${NAUTILUS_BIN:-$HOME/local/src/zndx/gaius/external/nautilus/target/release/nautilus}"
+          "$BIN" status --quiet --target 127.0.0.1:50661
+        '';
+        initial_delay_seconds = 5;
+        period_seconds = 10;
+        timeout_seconds = 5;
+        success_threshold = 1;
+        failure_threshold = 36;
+      };
+    };
+  };
+
   # https://devenv.sh/scripts/
   #
   # Browser tools are optional and pull a large browser bundle, so this stays
@@ -230,6 +257,7 @@ in
     echo "  hermes                 interactive CLI"
     echo "  hermes version         version / environment info"
     echo "  python -m hsengine     signals lattice engine (:50651, project=hermes)"
+    echo "  nautilus               supervisor :50661 (observe; instance config/supervision/hermes.textproto)"
     echo "  hermes dashboard       web UI :9119 HTTP / :9120 HTTPS (caddy local CA; getUserMedia)"
     echo "  rustfs                 S3 :9020 / console :9021  (mc alias local; $RUSTFS_DATA_DIR)"
     echo "  bwrap                  engine+dashboard jail (HOME=/home/hermes; HERMES_BWRAP=0 to skip)"
@@ -252,6 +280,7 @@ in
     bash -n ${config.devenv.root}/scripts/lib/hermes-bwrap.sh
     bash -n ${config.devenv.root}/scripts/processes/hermes-engine.sh
     bash -n ${config.devenv.root}/scripts/processes/hermes-dashboard.sh
+    bash -n ${config.devenv.root}/scripts/processes/nautilus.sh
   '';
 
   # See full reference at https://devenv.sh/reference/options/

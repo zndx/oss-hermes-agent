@@ -5,7 +5,16 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 INSTANCE="${1:-$ROOT/config/supervision/hermes.textproto}"
-NAUTILUS="${NAUTILUS_BIN:-$HOME/local/src/zndx/nautilus/target/debug/nautilus}"
+NAUTILUS="${NAUTILUS_BIN:-}"
+if [[ -z "$NAUTILUS" ]]; then
+  for c in \
+    "$HOME/local/src/zndx/gaius/external/nautilus/target/release/nautilus" \
+    "$HOME/local/src/zndx/nautilus/target/release/nautilus" \
+    "$HOME/local/src/zndx/nautilus/target/debug/nautilus"
+  do
+    [[ -x "$c" ]] && NAUTILUS="$c" && break
+  done
+fi
 PROTO="${SIGNALS_PROTOCOL_PROTO:-$ROOT/components/signals-protocol/proto}"
 
 if [[ ! -x "$NAUTILUS" ]]; then

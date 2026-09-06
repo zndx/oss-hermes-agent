@@ -1,0 +1,10 @@
+[Unit]
+Description=Nautilus hourly Backlog tick at hh:03 (Hermes)
+
+[Timer]
+OnCalendar=*-*-* *:03:00
+Persistent=false
+AccuracySec=15s
+
+[Install]
+WantedBy=timers.target

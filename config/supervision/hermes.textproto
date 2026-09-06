@@ -7,9 +7,12 @@
 # record earns promotion. Do not clone Gaius's in-engine NautilusService.
 
 project: "hermes"
-spec_version: "2026-09-04.1"
+spec_version: "2026-09-06.1"
 engine_build: "rch/devenv"
 engine_grpc: "127.0.0.1:50651"
+supervisor_grpc: "127.0.0.1:50661"   # resident Nautilus (loopback beside the engine)
+attrs { key: "timezone" value: "UTC" }
+attrs { key: "directives" value: "observe" }
 
 budgets {
   recycle_k: 3
@@ -56,3 +59,24 @@ processes {
   warmup_seconds: 15
   attrs { key: "note" value: "optional messaging gateway; miss is not an engine failure" }
 }
+processes {
+  id: "rustfs"
+  kind: PROCESS_KIND_EXTERNAL_SERVICE
+  parent: "hermes.service"
+  restart: RESTART_STRATEGY_NONE
+  observation { source: SOURCE_KIND_HTTP_PROBE locator: "http://127.0.0.1:9020/health" poll_seconds: 30 }
+  warmup_seconds: 10
+  attrs { key: "note" value: "Hermes RustFS S3 :9020; Nautilus journal stays on Signals :9010" }
+}
+processes {
+  id: "caddy"
+  kind: PROCESS_KIND_EXTERNAL_SERVICE
+  parent: "hermes.service"
+  restart: RESTART_STRATEGY_NONE
+  observation { source: SOURCE_KIND_HTTP_PROBE locator: "tcp://127.0.0.1:9120" poll_seconds: 30 }
+  warmup_seconds: 10
+  attrs { key: "note" value: "TLS front for getUserMedia; click-through local CA" }
+}
+# The resident Nautilus is NOT a child of this tree (supervisor never lives
+# in the supervised stack). devenv process-compose and systemd still run it
+# beside the engine.

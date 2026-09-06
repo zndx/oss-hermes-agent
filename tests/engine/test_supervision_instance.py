@@ -12,5 +12,6 @@ def test_instance_is_checked_in():
     text = Path(path).read_text()
     assert 'project: "hermes"' in text
     assert "127.0.0.1:50651" in text
+    assert "127.0.0.1:50661" in text
     assert "RESTART_STRATEGY_NONE" in text
     assert "PROCESS_KIND_ENGINE" not in text or "engine" in text

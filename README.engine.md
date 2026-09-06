@@ -99,18 +99,21 @@ are retained. `Remediate` is Ægir's. Lineage POSTs to Signals Atlas.
 `ServerQuery` answers `SURFACES`, `PEERS`, `REMOTES`, and `SOURCE_POSTURE`.
 Other kinds return an honest empty payload.
 
-## Nautilus (follow Gaius)
+## Nautilus (own instance, Gaius binary)
 
-Gaius leads the supervisor implementation. Hermes ships only the
-**instance**:
+Symmetric with Gaius: a **resident** Nautilus beside `hsengine`, not an
+in-engine daemon. Instance `config/supervision/hermes.textproto`; bind
+`127.0.0.1:50661`; directives `observe`. Journal on Signals RustFS
+`s3://signals-nautilus/` (project-namespaced). `devenv up -d` starts it.
 
 ```bash
 ./scripts/nautilus-validate.sh
+devenv processes list          # nautilus ready
+systemctl --user enable --now hermes.service
+systemctl --user enable --now hermes-nautilus-tick.timer   # see scripts/systemd/
 ```
 
-Restart strategies are `NONE` (observe / score / escalate — never
-actuate) until the external Nautilus binary earns promotion. Do not add
-an in-engine Nautilus daemon.
+Restart strategies stay `NONE` until promotion.
 
 ## Layout
 

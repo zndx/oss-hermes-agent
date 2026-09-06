@@ -1,0 +1,15 @@
+[Unit]
+Description=Hermes devenv stack (engine, dashboard, rustfs, caddy, nautilus)
+Documentation=file:///home/rch/local/src/oss/hermes-agent/README.engine.md
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+WorkingDirectory=%h/local/src/oss/hermes-agent
+ExecStart=/usr/bin/env devenv up -d
+ExecStop=/usr/bin/env devenv processes down
+
+[Install]
+WantedBy=default.target

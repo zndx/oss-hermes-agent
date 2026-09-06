@@ -1,0 +1,9 @@
+[Unit]
+Description=Nautilus hourly Backlog tick for Hermes (hh:03)
+Documentation=file:///home/rch/local/src/oss/hermes-agent/config/supervision/hermes.textproto
+After=hermes.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=%h/local/src/oss/hermes-agent
+ExecStart=/bin/bash -c 'BIN="${NAUTILUS_BIN:-$HOME/local/src/zndx/gaius/external/nautilus/target/release/nautilus}"; exec "$BIN" tick --target 127.0.0.1:50661'
