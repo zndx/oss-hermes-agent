@@ -1,22 +1,50 @@
-"""WebRTC caption overlay and local STT helpers."""
+"""WebRTC caption overlay and Kyutai STT helpers. No whisper path."""
 from __future__ import annotations
 
 import asyncio
 import time
 from types import SimpleNamespace
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 
 from hsengine.engine.generated import hermes_engine_pb2 as pb
 from hsengine.engine.server import HermesEngineServicer
 from hsengine.engine.webrtc_captions import CaptionBoard, paint_caption
-from hsengine.engine.webrtc_stt import frame_to_mono16k, stt_available, transcribe_pcm16k
+from hsengine.engine.webrtc_moshi import MoshiCaptioner
+from hsengine.engine.webrtc_stt import frame_to_mono16k, stt_available
 
 
-def test_engine_status_stt_matches_faster_whisper():
-    reply = asyncio.run(HermesEngineServicer().EngineStatus(pb.EngineStatusRequest(), None))
-    assert ("stt" in list(reply.capabilities)) is stt_available()
+def test_engine_status_omits_stt_when_moshi_is_down():
+    with patch("hsengine.engine.webrtc_stt.stt_available", return_value=False):
+        reply = asyncio.run(HermesEngineServicer().EngineStatus(pb.EngineStatusRequest(), None))
+    assert "stt" not in list(reply.capabilities)
+    assert "webrtc" in list(reply.capabilities)
+
+
+def test_engine_status_lists_stt_when_moshi_is_up():
+    with patch("hsengine.engine.webrtc_stt.stt_available", return_value=True):
+        reply = asyncio.run(HermesEngineServicer().EngineStatus(pb.EngineStatusRequest(), None))
+    assert "stt" in list(reply.capabilities)
+
+
+def test_stt_available_is_the_live_moshi_probe():
+    with patch("hsengine.engine.webrtc_stt.moshi_serving", return_value=False):
+        assert stt_available() is False
+    with patch("hsengine.engine.webrtc_stt.moshi_serving", return_value=True):
+        assert stt_available() is True
+
+
+def test_moshi_captioner_joins_word_events():
+    board = CaptionBoard()
+    cap = MoshiCaptioner(board, max_words=4)
+    assert cap.on_message({"type": "Word", "text": "hello"}) == "hello"
+    assert cap.on_message({"type": "Word", "text": "there"}) == "hello there"
+    cap.on_message({"type": "Word", "text": "one"})
+    cap.on_message({"type": "Word", "text": "two"})
+    cap.on_message({"type": "Word", "text": "three"})
+    assert board.get() == "there one two three"
+    assert cap.on_message({"type": "Step", "prs": [0.1, 0.2]}) is None
 
 
 def test_caption_board_holds_then_clears(monkeypatch):
@@ -47,22 +75,3 @@ def test_frame_to_mono16k_downsamples_stereo():
     assert pcm.ndim == 1
     assert 1500 < pcm.size < 1800
     assert float(pcm.max()) <= 1.0
-
-
-def test_transcribe_pcm16k_skips_silence():
-    np = pytest.importorskip("numpy")
-    quiet = np.zeros(16000, dtype=np.float32)
-    assert transcribe_pcm16k(quiet) == ""
-
-
-def test_transcribe_pcm16k_uses_warm_model():
-    np = pytest.importorskip("numpy")
-    if not stt_available():
-        pytest.skip("faster-whisper extra not installed")
-    segment = SimpleNamespace(text=" hello world ")
-    model = MagicMock()
-    model.transcribe.return_value = ([segment], None)
-    speech = np.ones(16000, dtype=np.float32) * 0.2
-    with patch("hsengine.engine.webrtc_stt.load_model", return_value=model):
-        assert transcribe_pcm16k(speech) == "hello world"
-    model.transcribe.assert_called_once()

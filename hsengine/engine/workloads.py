@@ -37,6 +37,12 @@ class WorkloadTable:
         wid = (workload_id or "").strip()
         with self._mu:
             row = self._rows.pop(wid, None) if wid else None
+        if row is None and wid:
+            from hsengine.engine.yk_sentinel import WORKLOAD_ID, kill_moshi
+
+            if wid == WORKLOAD_ID:
+                ended = kill_moshi()
+                return ended, "agent-rtc moshi-stt signaled" if ended else "agent-rtc already idle"
         if row is None:
             return False, f"no local process for workload_id={wid or '(empty)'}"
         ended = _terminate(row.pid)

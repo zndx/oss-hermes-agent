@@ -146,16 +146,15 @@ class WebRtcHub:
         self._pcs[session_id] = pc
 
         from hsengine.engine.webrtc_captions import CaptionBoard, caption_track
-        from hsengine.engine.webrtc_stt import follow_audio, load_model, stt_available
+        from hsengine.engine.webrtc_stt import follow_audio, stt_available
 
         board = CaptionBoard()
         loop = asyncio.get_running_loop()
-        if stt_available():
-            loop.run_in_executor(None, load_model)
+        captions = stt_available()
         video, audio = looping_tracks(src)
         tracks: list[object] = []
         if video is not None:
-            painted = caption_track(video, board) if stt_available() else video
+            painted = caption_track(video, board) if captions else video
             pc.addTrack(painted)  # type: ignore[arg-type]
             tracks.append(painted)
         if audio is not None:
@@ -175,7 +174,7 @@ class WebRtcHub:
         @pc.on("track")
         def _on_track(track) -> None:
             log.info("webrtc %s inbound %s", session_id, track.kind)
-            if track.kind != "audio" or not stt_available():
+            if track.kind != "audio" or not captions:
                 return
             task = loop.create_task(follow_audio(track, board))
             self._tasks.setdefault(session_id, []).append(task)

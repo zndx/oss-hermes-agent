@@ -292,8 +292,7 @@ engine = [
   "protobuf==6.33.5",
   "pyhocon==0.3.61",
   "aiortc>=1.9.0,<2",
-  # Same pin as the voice extra. WebRTC caption overlay keeps a warm tiny.en.
-  "faster-whisper==1.2.1",
+  "msgpack>=1.0.8,<2",
 ]
 # Signals-owned stack extra (perihelion devenv allowlist). Engine + Nautilus.
 # Nautilus git source flips from the lab path once weathership/nautilus trunk

@@ -108,6 +108,10 @@ in
     grpcurl
     bubblewrap # jail engine+dashboard (scripts/lib/hermes-bwrap.sh)
     mc # wrapped alias `local` against the devenv rustfs service
+    cmake # moshi-server (sentencepiece / opus)
+    pkg-config
+    openssl
+    libopus
   ] ++ lib.optional (pkgs ? secretspec) pkgs.secretspec;
 
   # Gitignored `.env` is the secretspec dotenv store (dashboard auth).
@@ -219,6 +223,33 @@ in
         initial_delay_seconds = 15;
         period_seconds = 10;
         timeout_seconds = 5;
+        success_threshold = 1;
+        failure_threshold = 60;
+      };
+    };
+  };
+
+  # Kyutai STT (moshi-server / Candle) on YK leaf agent-rtc (1 GPU guaranteed).
+  # No CPU/whisper path: process exits if YK does not admit.
+  processes.moshi = {
+    exec = ''
+      export KUBECONFIG="$HOME/.config/kube/rke2.yaml"
+      export HF_HOME="''${HF_HOME:-/raid/cache/huggingface}"
+      exec ${config.devenv.root}/scripts/processes/moshi-stt.sh
+    '';
+    process-compose = {
+      availability = {
+        restart = "on_failure";
+        backoff_seconds = 15;
+        max_restarts = 20;
+      };
+      readiness_probe = {
+        exec.command = ''
+          python -c "import socket; s=socket.create_connection(('127.0.0.1',5080),2); s.close()"
+        '';
+        initial_delay_seconds = 20;
+        period_seconds = 10;
+        timeout_seconds = 4;
         success_threshold = 1;
         failure_threshold = 60;
       };
