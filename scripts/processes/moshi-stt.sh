@@ -13,6 +13,7 @@ export KUBECONFIG="$HOME/.config/kube/rke2.yaml"
 export PATH="${HOME}/.cargo/bin:${PATH:-}"
 export CUDA_HOME="${CUDA_HOME:-/usr/local/cuda}"
 export PATH="${CUDA_HOME}/bin:${PATH}"
+export LD_LIBRARY_PATH="${CUDA_HOME}/lib64:${ROOT}/.devenv/profile/lib:${ROOT}/.devenv/state/venv/lib:/lib/x86_64-linux-gnu:/usr/lib/x86_64-linux-gnu${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
 export HF_HOME="${HF_HOME:-/raid/cache/huggingface}"
 export PYTHONPATH="${ROOT}${PYTHONPATH:+:$PYTHONPATH}"
 export PYTHONUNBUFFERED=1
