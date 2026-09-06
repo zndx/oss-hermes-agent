@@ -174,14 +174,25 @@ def test_renew_moves_the_horizon_forward_and_release_carries_outcome(signals):
     assert out["state"] == "released"
 
 
-def test_renew_loop_renews_at_half_life(signals):
-    lease = coordination.declare_interactive("webrtc", horizon_s=1, addr=signals.addr)
+def test_renew_loop_heartbeats_under_the_lease_ttl(signals):
+    # Airflow observes the Signals-held lease: the loop must HEARTBEAT at
+    # heartbeat_s (60 s default, well under the 180 s TTL), never at the
+    # half-horizon (1800 s for a 3600 s session — that would lapse the lease).
+    lease = coordination.declare_interactive("webrtc", horizon_s=3600, addr=signals.addr)
+    lease.heartbeat_s = 1
     lease.start_renewing()
     deadline = time.monotonic() + 3.0
     while time.monotonic() < deadline and not signals.renews:
         time.sleep(0.05)
     lease.release("done")
-    assert signals.renews, "renew loop never fired at horizon/2"
+    assert signals.renews, "heartbeat loop never fired at heartbeat_s with a 3600 s horizon"
+    # every heartbeat re-sets the horizon to now + horizon_s
+    assert signals.renews[0].horizon_ns > coordination.now_ns() + 3000 * 1_000_000_000
+
+
+def test_default_heartbeat_is_well_under_signals_lease_ttl():
+    assert coordination.DEFAULT_HEARTBEAT_S == 60
+    assert coordination.interactive_heartbeat_s() * 3 <= 180
 
 
 def test_declare_unreachable_signals_is_denied_with_guru():

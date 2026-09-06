@@ -45,6 +45,7 @@ GURU_WATCHUNIMPL = "#HS.COORD.00000005.WATCHUNIMPLEMENTED"
 
 DEFAULT_TARGET = "127.0.0.1:50551"
 DEFAULT_HORIZON_S = 3600
+DEFAULT_HEARTBEAT_S = 60  # lease heartbeat cadence; Signals' lease TTL is 180 s
 RPC_TIMEOUT_S = 15.0
 WATCH_SILENCE_S = 150.0        # Signals heartbeats every ≤ 60 s; silence past this = dead stream
 WATCH_UNIMPLEMENTED_RETRY_S = 300.0
@@ -95,6 +96,17 @@ def interactive_horizon_s() -> int:
     except (TypeError, ValueError):
         v = DEFAULT_HORIZON_S
     return v if v > 0 else DEFAULT_HORIZON_S
+
+
+def interactive_heartbeat_s() -> int:
+    """Lease heartbeat cadence. Airflow OBSERVES the session: the Signals-held
+    lease lapses when heartbeats stop (lease TTL 180 s at Signals), so this must
+    be well under the TTL — 60 s. The horizon is the session's outer bound."""
+    try:
+        v = int(str(_cfg("hermes.engine.webrtc.interactive.activity_heartbeat_s", DEFAULT_HEARTBEAT_S)))
+    except (TypeError, ValueError):
+        v = DEFAULT_HEARTBEAT_S
+    return v if v > 0 else DEFAULT_HEARTBEAT_S
 
 
 def interactive_precludes() -> list[str]:
@@ -257,11 +269,19 @@ def _rpc_error(guru: str, verb: str, addr: str, e: Exception) -> RuntimeError:
 
 @dataclass
 class ActivityLease:
-    """One declared Activity plus its half-life renew loop (daemon thread)."""
+    """One declared Activity plus its heartbeat loop (daemon thread).
+
+    RenewActivity is a HEARTBEAT on the Signals-held lease (it also re-sets the
+    horizon to now + horizon_s). The Airflow run's `hold` sensor observes that
+    lease: heartbeats stopping for the lease TTL = the session is gone = the run
+    completes as lapsed, without anyone telling Airflow. Cadence
+    `heartbeat_s` (60 s) must stay well under the TTL (180 s).
+    """
 
     activity: dict[str, Any]
     horizon_s: int
     addr: str
+    heartbeat_s: int = 60
     _stop: threading.Event = field(default_factory=threading.Event)
     _thread: threading.Thread | None = None
     _lock: threading.Lock = field(default_factory=threading.Lock)
@@ -280,14 +300,16 @@ class ActivityLease:
         self._thread.start()
 
     def _renew_loop(self) -> None:
-        wait_s = max(1.0, self.horizon_s / 2.0)
+        # Heartbeat cadence, never the half-horizon: the lease TTL at Signals is
+        # what the Airflow sensor observes; a missed TTL reads as "session gone".
+        wait_s = max(1.0, float(min(self.heartbeat_s, self.horizon_s / 2.0)))
         while not self._stop.wait(wait_s):
             try:
                 self.renew()
-                wait_s = max(1.0, self.horizon_s / 2.0)
-            except Exception as e:  # noqa: BLE001 — logged with guru; the horizon bounds the damage
+                wait_s = max(1.0, float(min(self.heartbeat_s, self.horizon_s / 2.0)))
+            except Exception as e:  # noqa: BLE001 — logged with guru; the lease TTL bounds the damage
                 log.warning("%s", e)
-                wait_s = RENEW_RETRY_S
+                wait_s = min(RENEW_RETRY_S, float(self.heartbeat_s))
 
     def renew(self, horizon_s: int | None = None) -> dict[str, Any]:
         h = int(horizon_s or self.horizon_s)
@@ -372,7 +394,12 @@ def declare_interactive(
             f"{GURU_DECLAREFAIL} DeclareActivity refused by Signals: {resp.error or 'no reason given'}\n"
             f"  Try: is `hermes` an allowed peer at the Signals scheduler; is the coord_activity DAG registered"
         )
-    lease = ActivityLease(activity=activity_to_dict(resp.activity), horizon_s=h, addr=addr)
+    lease = ActivityLease(
+        activity=activity_to_dict(resp.activity),
+        horizon_s=h,
+        addr=addr,
+        heartbeat_s=interactive_heartbeat_s(),
+    )
     publish_activity(lease.activity, "declared")
     log.info(
         "activity %s declared: %s owner=%s horizon=%ss postures=%s precludes=%s run=%s",
