@@ -38,26 +38,14 @@ _mu = threading.Lock()
 _worker: subprocess.Popen | None = None
 
 
-def _opus_lib() -> str:
-    profile = ROOT / ".devenv" / "profile" / "lib" / "libopus.so.0"
-    if profile.is_file():
-        return str(profile.parent)
-    for path in sorted(Path("/nix/store").glob("*-libopus-*/lib/libopus.so.0")):
-        return str(path.parent)
-    return ""
-
-
 def _moshi_env(gpu: int) -> dict[str, str]:
+    """CUDA_VISIBLE_DEVICES only. Library path is the devenv moshi-server wrap."""
     env = os.environ.copy()
-    env["PATH"] = f"{Path.home() / '.cargo' / 'bin'}:{env.get('PATH', '')}"
-    cuda = env.get("CUDA_HOME", "/usr/local/cuda")
-    env["CUDA_HOME"] = cuda
+    profile_bin = ROOT / ".devenv" / "profile" / "bin"
+    cargo_bin = Path.home() / ".cargo" / "bin"
+    env["PATH"] = f"{profile_bin}:{env.get('PATH', '')}:{cargo_bin}"
+    env["CUDA_HOME"] = env.get("CUDA_HOME", "/usr/local/cuda")
     env["CUDA_VISIBLE_DEVICES"] = str(gpu)
-    extra = _opus_lib()
-    env["LD_LIBRARY_PATH"] = (
-        f"{extra}:{cuda}/lib64:{ROOT}/.devenv/profile/lib:{ROOT}/.devenv/state/venv/lib:"
-        f"/lib/x86_64-linux-gnu:/usr/lib/x86_64-linux-gnu:{env.get('LD_LIBRARY_PATH', '')}"
-    )
     env["HF_HOME"] = env.get("HF_HOME", "/raid/cache/huggingface")
     return env
 

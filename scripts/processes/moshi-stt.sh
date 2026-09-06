@@ -7,9 +7,11 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$ROOT"
 
 export KUBECONFIG="$HOME/.config/kube/rke2.yaml"
+# Devenv wrap first (Nix glibc). rustup cargo last so we never exec the
+# unwrapped ELF against Ubuntu libc.
 # shellcheck disable=SC1091
 [[ -f "${HOME}/.cargo/env" ]] && source "${HOME}/.cargo/env"
-export PATH="${HOME}/.cargo/bin:${PATH:-}"
+export PATH="${ROOT}/.devenv/profile/bin:${PATH:-}:${HOME}/.cargo/bin"
 export CUDA_HOME="${CUDA_HOME:-/usr/local/cuda}"
 export PATH="${CUDA_HOME}/bin:${PATH}"
 export HF_HOME="${HF_HOME:-/raid/cache/huggingface}"

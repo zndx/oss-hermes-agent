@@ -112,6 +112,37 @@ in
     pkg-config
     openssl
     libopus
+    # Inverse of gaius tinybox-ninja.sh: cargo moshi-server is a Nix-linked
+    # ELF (PT_INTERP = nix glibc). Never put host /lib on its
+    # LD_LIBRARY_PATH (that loads Ubuntu 2.35 libc and dies on GLIBC_2.39).
+    # Isolated NVIDIA .so copies (atelier) + Nix openssl/opus/libstdc++.
+    (writeShellScriptBin "moshi-server" ''
+      set -euo pipefail
+      real="''${CARGO_HOME:-$HOME/.cargo}/bin/moshi-server"
+      if [[ ! -x "$real" ]]; then
+        echo "DENY: cargo moshi-server missing at $real (cargo install --features cuda moshi-server@0.6.4)" >&2
+        exit 127
+      fi
+      nvidia="${config.devenv.root}/.devenv/nvidia-libs"
+      mkdir -p "$nvidia"
+      if [[ -e /lib/x86_64-linux-gnu/libcuda.so.1 ]]; then
+        for lib in libcuda libnvidia-ml libnvidia-ptxjitcompiler; do
+          for f in /lib/x86_64-linux-gnu/''${lib}.so*; do
+            [[ -e "$f" ]] && ln -sfn "$f" "$nvidia/$(basename "$f")"
+          done
+        done
+      fi
+      libs="${lib.makeLibraryPath [
+        openssl
+        libopus
+        python311
+        stdenv.cc.cc.lib
+        zlib
+        libffi
+      ]}"
+      export LD_LIBRARY_PATH="$nvidia:/usr/local/cuda/lib64:$libs"
+      exec "$real" "$@"
+    '')
   ] ++ lib.optional (pkgs ? secretspec) pkgs.secretspec;
 
   # Gitignored `.env` is the secretspec dotenv store (dashboard auth).
@@ -322,6 +353,7 @@ in
     bash -n ${config.devenv.root}/scripts/processes/hermes-engine.sh
     bash -n ${config.devenv.root}/scripts/processes/hermes-dashboard.sh
     bash -n ${config.devenv.root}/scripts/processes/nautilus.sh
+    bash -n ${config.devenv.root}/scripts/processes/moshi-stt.sh
   '';
 
   # See full reference at https://devenv.sh/reference/options/

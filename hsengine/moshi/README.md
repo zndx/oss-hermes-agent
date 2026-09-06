@@ -28,3 +28,10 @@ stream is the assistant inner monologue, not a transcript of the mic.
 
 Sentinel: `federation.zndx.org/gpu: 1` only — never `nvidia.com/gpu` on
 the pause pod. Host CUDA runs after admit + `/tmp/zndx-gpu-leases`.
+
+Cargo `moshi-server` is a **Nix-linked** ELF (PT_INTERP = nix glibc).
+devenv ships a wrap of the same name: isolated NVIDIA `.so` copies
+(atelier) + `lib.makeLibraryPath` (openssl, opus, libstdc++). Never put
+host `/lib` on that process's `LD_LIBRARY_PATH` — Ubuntu 2.35 libc wins
+and dies on `GLIBC_2.39`. Inverse of Gaius `tinybox-ninja.sh` (host ELF
+must not see Nix glibc).
