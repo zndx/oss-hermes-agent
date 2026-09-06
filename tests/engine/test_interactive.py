@@ -53,8 +53,8 @@ def test_complete_cerebras_posts_qwen38(monkeypatch):
 
 def test_cerebras_thinking_yaml_is_zero_gpu_subscription():
     raw = cerebras_thinking_yaml()
-    assert "yunikorn.apache.org/queue: root.external.subscription.rate-limited" in raw
-    assert CEREBRAS_QUEUE == "root.external.subscription.rate-limited"
+    assert "yunikorn.apache.org/queue: root.external.token-metered" in raw
+    assert CEREBRAS_QUEUE == "root.external.token-metered"
     assert 'federation.zndx.org/gpu: "1"' not in raw
     assert "nvidia.com/gpu" not in raw
     assert "hermes-cerebras-thinking" in raw

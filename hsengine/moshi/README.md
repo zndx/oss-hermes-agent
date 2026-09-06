@@ -8,7 +8,8 @@ resident with Hermes. CUDA `moshi-server` (`:5080`) and the YK claims
 start on WebRTC Connect and stop on the last Disconnect:
 
 1. Yield local Gaius thinking (`gaius-thinking`, 4×4090).
-2. Stamp `hermes-cerebras-thinking` on `root.external.subscription.rate-limited`.
+2. Stamp `hermes-cerebras-thinking` on `root.external.token-metered`
+   (pay-per-token APIs; subscription.rate-limited is Grok/Bytez only).
 3. Admit `hermes-agent-rtc` (`zndx-gpu-high`) and start moshi-server.
 4. Hermes Complete for `agent`/`thinking` uses Cerebras `qwen-3.8-27b`.
 
