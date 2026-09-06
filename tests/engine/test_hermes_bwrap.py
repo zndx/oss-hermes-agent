@@ -68,6 +68,33 @@ class HermesBwrapTests(unittest.TestCase):
         self.assertIn("--setenv HOME", proc.stderr)
         self.assertIn(str(ROOT), proc.stderr)
 
+    def test_plugin_symlink_target_is_bound(self) -> None:
+        import tempfile
+
+        bwrap = ROOT / ".devenv/profile/bin/bwrap"
+        if not bwrap.is_file():
+            self.skipTest("devenv bubblewrap not installed yet")
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            hermes_home = tmp_path / "hermes"
+            target = tmp_path / "checkout" / "signals-listen"
+            (target / "dashboard").mkdir(parents=True)
+            (hermes_home / "plugins").mkdir(parents=True)
+            (hermes_home / "plugins" / "signals-listen").symlink_to(target)
+            proc = _run(
+                "hermes_bwrap_exec /bin/true",
+                env={
+                    "HERMES_BWRAP": "1",
+                    "HERMES_BWRAP_PRINT": "1",
+                    "HERMES_BWRAP_BIN": str(bwrap),
+                    "HERMES_ROOT": str(ROOT),
+                    "HERMES_HOME": str(hermes_home),
+                    "HOME": str(tmp_path),
+                },
+            )
+            self.assertEqual(proc.returncode, 0, proc.stderr)
+            self.assertIn(str(target), proc.stderr)
+
 
 if __name__ == "__main__":
     unittest.main()

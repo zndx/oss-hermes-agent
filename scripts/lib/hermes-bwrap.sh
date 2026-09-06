@@ -76,6 +76,18 @@ hermes_bwrap_exec() {
     args+=(--bind "$rustfs" "$rustfs")
   fi
 
+  # install.sh developer checkouts symlink $HERMES_HOME/plugins/<name> at a
+  # tree outside the jail (this checkout + ~/.hermes). Follow those links.
+  local dest src
+  if [[ -d "$host_hermes/plugins" ]]; then
+    for dest in "$host_hermes/plugins"/*; do
+      [[ -L "$dest" ]] || continue
+      src="$(readlink -f "$dest" 2>/dev/null || true)"
+      [[ -n "$src" && -d "$src" ]] || continue
+      args+=(--bind "$src" "$src")
+    done
+  fi
+
   if [[ "${HERMES_BWRAP_PRINT:-0}" == "1" ]]; then
     printf 'bwrap' >&2
     local a
