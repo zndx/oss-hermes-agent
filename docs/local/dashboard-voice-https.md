@@ -55,6 +55,14 @@ already-trusted proxy for `X-Forwarded-Proto`.
 | `https://192.168.1.55:9120` (caddy, click-through) | yes |
 | `https://tinybox.dev.vista.zndx.org` (WARP TLS) | yes |
 
+Chrome: Caddy used to advertise HTTP/3 (`Alt-Svc: h3=:9120`). A regular
+profile caches that for 30 days, then speaks QUIC; the interstitial's
+**Proceed to 192.168.1.55 (unsafe)** control does not work. A private
+tab has no Alt-Svc cache, so the same cert is fine. devenv Caddy is
+**h1/h2 only** now. If a regular tab is already stuck, flush
+`chrome://net-internals/#alt-svc` (or site data for `192.168.1.55`) and
+reload — or keep using the private tab until that cache drops.
+
 ## Varnish vs Caddy for TLS
 
 Signals projects already run **Varnish as HTTP cache** on `127.0.0.1:609x`

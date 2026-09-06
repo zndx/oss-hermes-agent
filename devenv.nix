@@ -137,6 +137,14 @@ in
         local_certs
         auto_https disable_redirects
         default_sni 192.168.1.55
+        # HTTP/3 Alt-Svc (h3) is remembered for 30d. Chrome then talks QUIC
+        # to this origin; an untrusted internal CA makes "Proceed (unsafe)"
+        # unclickable in a regular profile. Incognito has no Alt-Svc cache
+        # so the same cert click-through works. LAN dashboard does not need
+        # QUIC — keep h1/h2 only.
+        servers {
+          protocols h1 h2
+        }
       }
       localhost:9120, 127.0.0.1:9120, 192.168.1.55:9120, tinybox:9120, tinybox.lan:9120, tinybox.dev.vista.zndx.org:9120 {
         tls internal
