@@ -162,6 +162,13 @@ def test_offer_answers_a_recvonly_peer(tmp_path, monkeypatch):
     monkeypatch.setattr(ws, "ICE_SERVERS", [])
     monkeypatch.setattr(ws, "ICE_TIMEOUT_S", 2.0)
 
+    async def _noop(*_a, **_k):
+        return None
+
+    monkeypatch.setattr("hsengine.engine.interactive.enter_async", _noop)
+    monkeypatch.setattr("hsengine.engine.interactive.leave_async", _noop)
+    monkeypatch.setattr("hsengine.engine.webrtc_stt.stt_available", lambda: True)
+
     async def _run():
         from aiortc import RTCConfiguration, RTCPeerConnection
 

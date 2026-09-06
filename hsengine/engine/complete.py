@@ -29,6 +29,16 @@ def complete(
 ) -> CompleteResult:
     cap = (capability or "agent").strip() or "agent"
 
+    from hsengine.engine import interactive
+
+    if interactive.is_active() and cap in ("agent", "thinking"):
+        return interactive.complete_cerebras(
+            prompt=prompt,
+            system_prompt=system_prompt,
+            max_tokens=max_tokens,
+            temperature=temperature,
+        )
+
     if oip_client.configured_oip_peers():
         try:
             return oip_client.model_infer_federated(

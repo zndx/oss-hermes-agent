@@ -25,6 +25,10 @@ WORKLOAD_ID = "hermes-agent-rtc"
 QUEUE = "root.internal.inference.agent-rtc"
 RESOURCE_CLASS = "internal.inference.agent-rtc"
 GPU_TOKENS = 1
+PRIORITY_CLASS = "zndx-gpu-high"
+CEREBRAS_WORKLOAD_ID = "hermes-cerebras-thinking"
+CEREBRAS_QUEUE = "root.external.subscription.rate-limited"
+CEREBRAS_CLASS = "external.subscription.rate-limited"
 NAMESPACE = os.environ.get("SIGNALS_SENTINEL_NAMESPACE", "federation-signals")
 C2_URL = os.environ.get("SIGNALS_C2_URL", "http://127.0.0.1:50561")
 GPU_KEY = "federation.zndx.org/gpu"
@@ -45,6 +49,8 @@ def application_yaml(
     resource_class: str = RESOURCE_CLASS,
     gpu_tokens: int = GPU_TOKENS,
 ) -> str:
+    gpu_req = f'\n          {GPU_KEY}: "{gpu_tokens}"' if gpu_tokens else ""
+    gpu_lim = f'\n          {GPU_KEY}: "{gpu_tokens}"' if gpu_tokens else ""
     return f"""apiVersion: v1
 kind: Pod
 metadata:
@@ -68,6 +74,7 @@ metadata:
     federation.zndx.org/phase: "listen"
 spec:
   restartPolicy: Never
+  priorityClassName: {PRIORITY_CLASS}
   hostNetwork: true
   containers:
     - name: sentinel
@@ -91,13 +98,23 @@ spec:
       resources:
         requests:
           cpu: 10m
-          memory: 16Mi
-          {GPU_KEY}: "{gpu_tokens}"
+          memory: 16Mi{gpu_req}
         limits:
           cpu: 10m
-          memory: 16Mi
-          {GPU_KEY}: "{gpu_tokens}"
+          memory: 16Mi{gpu_lim}
 """
+
+
+def cerebras_thinking_yaml() -> str:
+    return application_yaml(
+        CEREBRAS_WORKLOAD_ID,
+        queue=CEREBRAS_QUEUE,
+        resource_class=CEREBRAS_CLASS,
+        gpu_tokens=0,
+    ).replace("federation.kind: agent-rtc", "federation.kind: cerebras-thinking").replace(
+        'federation.zndx.org/phase: "listen"',
+        'federation.zndx.org/phase: "think"',
+    )
 
 
 def _kubectl(args: list[str], *, timeout: int = 30) -> subprocess.CompletedProcess:
@@ -114,13 +131,13 @@ def _kubectl(args: list[str], *, timeout: int = 30) -> subprocess.CompletedProce
     )
 
 
-def apply_sentinel(workload_id: str = WORKLOAD_ID) -> None:
+def apply_manifest(raw: str) -> None:
     kubectl = shutil.which("kubectl")
     if kubectl is None:
         raise RuntimeError("kubectl not on PATH — agent-rtc sentinel cannot admit")
     proc = subprocess.run(
         [kubectl, "-n", NAMESPACE, "apply", "-f", "-"],
-        input=application_yaml(workload_id),
+        input=raw,
         capture_output=True,
         text=True,
         timeout=30,
@@ -131,7 +148,16 @@ def apply_sentinel(workload_id: str = WORKLOAD_ID) -> None:
         raise RuntimeError(
             f"YK sentinel apply failed: {(proc.stderr or proc.stdout).strip()}"
         )
+
+
+def apply_sentinel(workload_id: str = WORKLOAD_ID) -> None:
+    apply_manifest(application_yaml(workload_id))
     log.info("applied sentinel %s on %s", workload_id, QUEUE)
+
+
+def apply_cerebras_thinking() -> None:
+    apply_manifest(cerebras_thinking_yaml())
+    log.info("applied sentinel %s on %s", CEREBRAS_WORKLOAD_ID, CEREBRAS_QUEUE)
 
 
 def wait_admitted(workload_id: str = WORKLOAD_ID, timeout_s: float = ADMIT_TIMEOUT_S) -> None:

@@ -245,13 +245,13 @@ in
       };
       readiness_probe = {
         exec.command = ''
-          python -c "import socket; s=socket.create_connection(('127.0.0.1',5080),2); s.close()"
+          python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:5081/health', timeout=2)"
         '';
-        initial_delay_seconds = 20;
+        initial_delay_seconds = 2;
         period_seconds = 10;
         timeout_seconds = 4;
         success_threshold = 1;
-        failure_threshold = 60;
+        failure_threshold = 12;
       };
     };
   };

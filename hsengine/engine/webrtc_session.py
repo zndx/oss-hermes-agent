@@ -145,12 +145,20 @@ class WebRtcHub:
         session_id = uuid.uuid4().hex[:12]
         self._pcs[session_id] = pc
 
+        from hsengine.engine import interactive
         from hsengine.engine.webrtc_captions import CaptionBoard, caption_track
         from hsengine.engine.webrtc_stt import follow_audio, stt_available
 
-        board = CaptionBoard()
-        loop = asyncio.get_running_loop()
-        captions = stt_available()
+        await interactive.enter_async()
+        try:
+            board = CaptionBoard()
+            loop = asyncio.get_running_loop()
+            captions = stt_available()
+            if not captions:
+                raise RuntimeError("agent-rtc STT unavailable after interactive enter")
+        except Exception:
+            await self._drop(session_id)
+            raise
         video, audio = looping_tracks(src)
         tracks: list[object] = []
         if video is not None:
@@ -211,6 +219,10 @@ class WebRtcHub:
             await pc.close()  # type: ignore[union-attr]
         except Exception:
             log.debug("webrtc close %s", session_id, exc_info=True)
+        if not self._pcs:
+            from hsengine.engine import interactive
+
+            await interactive.leave_async()
 
 
 async def _ice_complete(pc: object, timeout: float | None = None) -> None:

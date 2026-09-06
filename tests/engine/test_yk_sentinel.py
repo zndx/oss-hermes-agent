@@ -17,3 +17,4 @@ def test_sentinel_yaml_claims_one_federation_gpu_token():
     assert "nvidia.com/gpu" not in raw
     assert "federation.project: hermes" in raw
     assert f"name: {WORKLOAD_ID}" in raw
+    assert "priorityClassName: zndx-gpu-high" in raw
