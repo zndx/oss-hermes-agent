@@ -29,6 +29,12 @@ python -m grpc_tools.protoc \
   --python_out="$OUT" --pyi_out="$OUT" --grpc_python_out="$OUT" \
   "$ZNDX/zndx/engine/v1/engine.proto"
 
+echo "Compiling zndx.supervision.v1.EngineSupervision"
+python -m grpc_tools.protoc \
+  -I "$ZNDX" \
+  --python_out="$OUT" --pyi_out="$OUT" --grpc_python_out="$OUT" \
+  "$ZNDX/zndx/supervision/v1/supervision.proto"
+
 echo "Compiling inference.GRPCInferenceService (OIP)"
 python -m grpc_tools.protoc \
   -I "$ZNDX" \
@@ -37,11 +43,14 @@ python -m grpc_tools.protoc \
 
 mkdir -p \
   "$OUT/zndx/engine/v1" \
+  "$OUT/zndx/supervision/v1" \
   "$OUT/inference/v2"
 touch \
   "$OUT/zndx/__init__.py" \
   "$OUT/zndx/engine/__init__.py" \
   "$OUT/zndx/engine/v1/__init__.py" \
+  "$OUT/zndx/supervision/__init__.py" \
+  "$OUT/zndx/supervision/v1/__init__.py" \
   "$OUT/inference/__init__.py" \
   "$OUT/inference/v2/__init__.py"
 
@@ -50,6 +59,10 @@ sed -i 's/^import hermes_engine_pb2/from . import hermes_engine_pb2/' \
   "$OUT/hermes_engine_pb2_grpc.py"
 sed -i 's/^from zndx\.engine\.v1 import/from hsengine.engine.generated.zndx.engine.v1 import/' \
   "$OUT/zndx/engine/v1/engine_pb2_grpc.py"
+if [[ -f "$OUT/zndx/supervision/v1/supervision_pb2_grpc.py" ]]; then
+  sed -i 's/^from zndx\.supervision\.v1 import/from hsengine.engine.generated.zndx.supervision.v1 import/' \
+    "$OUT/zndx/supervision/v1/supervision_pb2_grpc.py"
+fi
 if [[ -f "$OUT/inference/v2/open_inference_grpc_pb2_grpc.py" ]]; then
   sed -i 's/^from inference\.v2 import/from hsengine.engine.generated.inference.v2 import/' \
     "$OUT/inference/v2/open_inference_grpc_pb2_grpc.py"

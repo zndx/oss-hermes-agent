@@ -113,7 +113,10 @@ systemctl --user enable --now hermes.service
 systemctl --user enable --now hermes-nautilus-tick.timer   # see scripts/systemd/
 ```
 
-Restart strategies stay `NONE` until promotion.
+`hsengine` serves `zndx.supervision.v1.EngineSupervision` on the same
+lattice port (`Supervise` stream + honest-empty `Backlog`). No Postgres:
+replay is the in-process ring; directives in observe mode are acknowledged
+but not applied. Nautilus dials this stream independently of Gaius.
 
 ## Layout
 

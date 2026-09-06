@@ -28,6 +28,10 @@ from hsengine.engine.generated.inference.v2 import open_inference_grpc_pb2 as oi
 from hsengine.engine.generated.inference.v2 import open_inference_grpc_pb2_grpc as oip_grpc
 from hsengine.engine.generated.zndx.engine.v1 import engine_pb2 as zpb
 from hsengine.engine.generated.zndx.engine.v1 import engine_pb2_grpc as zpb_grpc
+from hsengine.engine.generated.zndx.supervision.v1 import supervision_pb2 as sv_pb
+from hsengine.engine.generated.zndx.supervision.v1 import supervision_pb2_grpc as sv_grpc
+from hsengine.engine.supervision_bus import init_bus
+from hsengine.engine.supervision_servicer import EngineSupervisionServicer
 from hsengine.engine.oip_tensors import STATUS_CONSULTING
 from hsengine.engine.workloads import WorkloadTable
 
@@ -73,6 +77,7 @@ def _inference_detail() -> str:
                 "port": get_int("hermes.engine.grpc.port"),
                 "services": [
                     "zndx.engine.v1.Engine",
+                    "zndx.supervision.v1.EngineSupervision",
                     "hermes.engine.HermesEngine",
                     "inference.GRPCInferenceService",
                 ],
@@ -238,14 +243,17 @@ async def serve() -> None:
     s2s.stamp_running_sha()
 
     server = grpc.aio.server()
+    init_bus()
     pb_grpc.add_HermesEngineServicer_to_server(HermesEngineServicer(), server)
     zpb_grpc.add_EngineServicer_to_server(ZndxEngineServicer(), server)
+    sv_grpc.add_EngineSupervisionServicer_to_server(EngineSupervisionServicer(), server)
     oip_grpc.add_GRPCInferenceServiceServicer_to_server(
         oip_servicer.OipInferenceServicer(), server
     )
     service_names = (
         pb.DESCRIPTOR.services_by_name["HermesEngine"].full_name,
         zpb.DESCRIPTOR.services_by_name["Engine"].full_name,
+        sv_pb.DESCRIPTOR.services_by_name["EngineSupervision"].full_name,
         oip_pb.DESCRIPTOR.services_by_name["GRPCInferenceService"].full_name,
         reflection.SERVICE_NAME,
     )
@@ -257,7 +265,7 @@ async def serve() -> None:
     await server.start()
     log.info(
         "hermes engine serving on %s:%s "
-        "(native + zndx.engine.v1 + OIP + reflection; "
+        "(native + zndx.engine.v1 + EngineSupervision + OIP + reflection; "
         "capability=agent; surfaces=%s; peers=%s)",
         host,
         port,
