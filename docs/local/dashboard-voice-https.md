@@ -1,4 +1,4 @@
-# Dashboard voice: Synth listen now, engine-local WebRTC later
+# Dashboard voice: engine-local WebRTC first
 
 Do **not** put WebRTC on `signals-protocol`. Engines that need media
 implement it **locally** (Hermes `hsengine`, Synth `Observe`). The
@@ -19,8 +19,10 @@ Browser **listen** (not PortAudio on the server):
    Gateway WS is a thin bridge: first JSON `{"sample_rate":N}`, then
    binary frames.
 
-WebRTC is a later, still **engine-local**, upgrade (Opus/RTCPeerConnection
-on the same project engine). signals-protocol stays Complete/OIP/Status.
+WebRTC is the listen path now: `HermesEngine.WebRtcOffer` on hsengine
+(SDP in/out), looping the forward-sim clip as the outbound track. The
+dashboard `signals-listen` plugin is the browser peer. signals-protocol
+stays Complete/OIP/Status.
 
 ## What Hermes does today (why the laptop is silent)
 
@@ -35,8 +37,8 @@ bwrap does not bind `/dev/snd` — correct; the mic is the laptop.
 | Layer | Hermes | Notes |
 |-------|--------|--------|
 | TLS | devenv `services.caddy` `:9120` → dashboard `:9119` | LAN IP-SAN + tinybox names; click-through OK. WARP hostname can terminate TLS at the edge and proxy here or to loopback `:9119`. |
-| Listen (now) | dashboard `getUserMedia` → `wss://…/ws/voice` → **hsengine** stream | PCM16 like Synth. STT on the engine (not PortAudio). |
-| WebRTC (later) | hsengine-local PeerConnection | Direct to this engine, advertised however we already advertise the engine (`Status` / surfaces), **not** a new signals-protocol RPC. |
+| Listen | dashboard plugin `RTCPeerConnection` → `POST /api/plugins/signals-listen/offer` → **hsengine** `WebRtcOffer` | Video is the engine clip; mic is an inbound audio track (STT later). |
+| WebRTC | hsengine-local PeerConnection | Direct to this engine. Advertised as native capability `webrtc` on `HermesEngine.EngineStatus`, **not** a signals-protocol RPC. |
 | STT | existing `stt.provider` | Groq/OpenAI/local whisper once audio arrives. |
 
 `HERMES_DASHBOARD_PUBLIC_URL` must match the **browser origin**

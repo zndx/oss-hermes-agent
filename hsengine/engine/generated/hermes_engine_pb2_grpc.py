@@ -5,7 +5,7 @@ import warnings
 
 from . import hermes_engine_pb2 as hermes__engine__pb2
 
-GRPC_GENERATED_VERSION = '1.76.0'
+GRPC_GENERATED_VERSION = '1.81.1'
 GRPC_VERSION = grpc.__version__
 _version_not_supported = False
 
@@ -25,7 +25,7 @@ if _version_not_supported:
     )
 
 
-class HermesEngineStub(object):
+class HermesEngineStub:
     """Missing associated documentation comment in .proto file."""
 
     def __init__(self, channel):
@@ -44,9 +44,14 @@ class HermesEngineStub(object):
                 request_serializer=hermes__engine__pb2.GetAgentInstanceRequest.SerializeToString,
                 response_deserializer=hermes__engine__pb2.GetAgentInstanceReply.FromString,
                 _registered_method=True)
+        self.WebRtcOffer = channel.unary_unary(
+                '/hermes.engine.HermesEngine/WebRtcOffer',
+                request_serializer=hermes__engine__pb2.WebRtcOfferRequest.SerializeToString,
+                response_deserializer=hermes__engine__pb2.WebRtcOfferReply.FromString,
+                _registered_method=True)
 
 
-class HermesEngineServicer(object):
+class HermesEngineServicer:
     """Missing associated documentation comment in .proto file."""
 
     def EngineStatus(self, request, context):
@@ -59,6 +64,14 @@ class HermesEngineServicer(object):
     def GetAgentInstance(self, request, context):
         """Resolve the live agent/dashboard instance for local tooling.
         Non-secret discovery only — passwords and API keys never appear here.
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def WebRtcOffer(self, request, context):
+        """Engine-local WebRTC (not zndx.engine.v1). Browser SDP offer in, answer out.
+        Video is the current forward-sim clip (fixture: Grok Imagine of a Gaius card).
         """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
@@ -77,6 +90,11 @@ def add_HermesEngineServicer_to_server(servicer, server):
                     request_deserializer=hermes__engine__pb2.GetAgentInstanceRequest.FromString,
                     response_serializer=hermes__engine__pb2.GetAgentInstanceReply.SerializeToString,
             ),
+            'WebRtcOffer': grpc.unary_unary_rpc_method_handler(
+                    servicer.WebRtcOffer,
+                    request_deserializer=hermes__engine__pb2.WebRtcOfferRequest.FromString,
+                    response_serializer=hermes__engine__pb2.WebRtcOfferReply.SerializeToString,
+            ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
             'hermes.engine.HermesEngine', rpc_method_handlers)
@@ -85,7 +103,7 @@ def add_HermesEngineServicer_to_server(servicer, server):
 
 
  # This class is part of an EXPERIMENTAL API.
-class HermesEngine(object):
+class HermesEngine:
     """Missing associated documentation comment in .proto file."""
 
     @staticmethod
@@ -132,6 +150,33 @@ class HermesEngine(object):
             '/hermes.engine.HermesEngine/GetAgentInstance',
             hermes__engine__pb2.GetAgentInstanceRequest.SerializeToString,
             hermes__engine__pb2.GetAgentInstanceReply.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def WebRtcOffer(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/hermes.engine.HermesEngine/WebRtcOffer',
+            hermes__engine__pb2.WebRtcOfferRequest.SerializeToString,
+            hermes__engine__pb2.WebRtcOfferReply.FromString,
             options,
             channel_credentials,
             insecure,

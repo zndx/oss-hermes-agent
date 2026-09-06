@@ -19,6 +19,9 @@ service HermesEngine {
   // Resolve the live agent/dashboard instance for local tooling.
   // Non-secret discovery only — passwords and API keys never appear here.
   rpc GetAgentInstance(GetAgentInstanceRequest) returns (GetAgentInstanceReply);
+  // Engine-local WebRTC (not zndx.engine.v1). Browser SDP offer in, answer out.
+  // Video is the current forward-sim clip (fixture: Grok Imagine of a Gaius card).
+  rpc WebRtcOffer(WebRtcOfferRequest) returns (WebRtcOfferReply);
 }
 
 message EngineStatusRequest {}
@@ -36,4 +39,16 @@ message GetAgentInstanceReply {
   string dashboard_url = 2;  // e.g. http://127.0.0.1:9119
   string gateway_url = 3;    // e.g. http://127.0.0.1:8642
   string detail = 4;         // human-legible probe note
+}
+
+message WebRtcOfferRequest {
+  string sdp = 1;
+  string type = 2;  // "offer"
+}
+
+message WebRtcOfferReply {
+  string sdp = 1;
+  string type = 2;  // "answer"
+  string session_id = 3;
+  string source = 4;  // path or uri of the video currently attached
 }

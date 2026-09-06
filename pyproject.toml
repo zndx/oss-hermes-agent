@@ -291,6 +291,7 @@ engine = [
   "grpcio-reflection==1.81.1",
   "protobuf==6.33.5",
   "pyhocon==0.3.61",
+  "aiortc>=1.9.0,<2",
 ]
 # Signals-owned stack extra (perihelion devenv allowlist). Engine + Nautilus.
 # Nautilus git source flips from the lab path once weathership/nautilus trunk

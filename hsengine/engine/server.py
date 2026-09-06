@@ -122,7 +122,7 @@ def _status_endpoints(dash: probe.SurfaceProbe) -> list:
 
 class HermesEngineServicer(pb_grpc.HermesEngineServicer):
     async def EngineStatus(self, request, context):
-        capabilities = [CAPABILITY_AGENT]
+        capabilities = [CAPABILITY_AGENT, "webrtc"]
         if federation.federation_peers():
             capabilities.append(CAPABILITY_INSTRUCT)
         return pb.EngineStatusReply(
@@ -139,6 +139,31 @@ class HermesEngineServicer(pb_grpc.HermesEngineServicer):
             dashboard_url=dash.url,
             gateway_url=gw.url,
             detail=f"dashboard={dash.detail}; gateway={gw.detail}",
+        )
+
+    async def WebRtcOffer(self, request, context):
+        from hsengine.engine import webrtc_session
+
+        try:
+            reply = await webrtc_session.HUB.offer(request.sdp, request.type or "offer")
+        except FileNotFoundError as e:
+            context.set_code(grpc.StatusCode.FAILED_PRECONDITION)
+            context.set_details(str(e))
+            return pb.WebRtcOfferReply()
+        except webrtc_session.WebRtcUnavailable as e:
+            context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+            context.set_details(str(e))
+            return pb.WebRtcOfferReply()
+        except Exception as e:
+            log.exception("WebRtcOffer failed")
+            context.set_code(grpc.StatusCode.INTERNAL)
+            context.set_details(str(e))
+            return pb.WebRtcOfferReply()
+        return pb.WebRtcOfferReply(
+            sdp=reply["sdp"],
+            type=reply["type"],
+            session_id=reply["session_id"],
+            source=reply["source"],
         )
 
 
