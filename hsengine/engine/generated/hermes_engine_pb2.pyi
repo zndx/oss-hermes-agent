@@ -55,3 +55,15 @@ class WebRtcOfferReply(_message.Message):
     session_id: str
     source: str
     def __init__(self, sdp: _Optional[str] = ..., type: _Optional[str] = ..., session_id: _Optional[str] = ..., source: _Optional[str] = ...) -> None: ...
+
+class WebRtcHangupRequest(_message.Message):
+    __slots__ = ("session_id",)
+    SESSION_ID_FIELD_NUMBER: _ClassVar[int]
+    session_id: str
+    def __init__(self, session_id: _Optional[str] = ...) -> None: ...
+
+class WebRtcHangupReply(_message.Message):
+    __slots__ = ("dropped",)
+    DROPPED_FIELD_NUMBER: _ClassVar[int]
+    dropped: bool
+    def __init__(self, dropped: _Optional[bool] = ...) -> None: ...

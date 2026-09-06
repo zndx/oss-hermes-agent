@@ -166,6 +166,12 @@ class HermesEngineServicer(pb_grpc.HermesEngineServicer):
             source=reply["source"],
         )
 
+    async def WebRtcHangup(self, request, context):
+        from hsengine.engine import webrtc_session
+
+        dropped = await webrtc_session.HUB.hangup(request.session_id)
+        return pb.WebRtcHangupReply(dropped=dropped)
+
 
 class ZndxEngineServicer(zpb_grpc.EngineServicer):
     """Shared federation face: Status, ServerQuery, federated Complete, Yield, lineage."""

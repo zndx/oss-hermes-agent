@@ -22,6 +22,8 @@ service HermesEngine {
   // Engine-local WebRTC (not zndx.engine.v1). Browser SDP offer in, answer out.
   // Video is the current forward-sim clip (fixture: Grok Imagine of a Gaius card).
   rpc WebRtcOffer(WebRtcOfferRequest) returns (WebRtcOfferReply);
+  // Tear down one WebRtcOffer session (browser Disconnect).
+  rpc WebRtcHangup(WebRtcHangupRequest) returns (WebRtcHangupReply);
 }
 
 message EngineStatusRequest {}
@@ -51,4 +53,12 @@ message WebRtcOfferReply {
   string type = 2;  // "answer"
   string session_id = 3;
   string source = 4;  // path or uri of the video currently attached
+}
+
+message WebRtcHangupRequest {
+  string session_id = 1;
+}
+
+message WebRtcHangupReply {
+  bool dropped = 1;
 }

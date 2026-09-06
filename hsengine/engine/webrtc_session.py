@@ -3,6 +3,9 @@
 Not zndx.engine.v1. Signaling is HermesEngine.WebRtcOffer (SDP). Media is
 UDP from this process (host net; bwrap shares net). Inbound tracks (laptop
 mic) are accepted so the PC is duplex-ready; this slice does not STT them.
+
+aiortc MediaPlayer(loop=True) seeks back to PTS 0; browsers freeze after
+one pass. LoopingFileTrack reopens the file and keeps PTS increasing.
 """
 from __future__ import annotations
 
@@ -39,10 +42,83 @@ def video_path() -> Path | None:
     return None
 
 
+def looping_tracks(src: Path) -> tuple[object | None, object | None]:
+    """Video/audio tracks that replay *src* with monotonic PTS."""
+    from aiortc import MediaStreamTrack
+    from aiortc.contrib.media import MediaPlayer
+    from aiortc.mediastreams import MediaStreamError
+
+    class LoopingFileTrack(MediaStreamTrack):
+        def __init__(self, path: Path, kind: str) -> None:
+            super().__init__()
+            self.kind = kind
+            self._path = path
+            self._player: object | None = None
+            self._inner: object | None = None
+            self._offset = 0
+            self._last_pts: int | None = None
+
+        def _ensure(self) -> None:
+            if self._inner is not None:
+                return
+            player = MediaPlayer(str(self._path))
+            inner = player.video if self.kind == "video" else player.audio
+            if inner is None:
+                raise FileNotFoundError(f"no {self.kind} track in {self._path}")
+            self._player = player
+            self._inner = inner
+
+        def _close_inner(self) -> None:
+            inner, self._inner = self._inner, None
+            self._player = None
+            if inner is None:
+                return
+            try:
+                inner.stop()
+            except Exception:
+                log.debug("webrtc stop inner %s", self.kind, exc_info=True)
+
+        async def recv(self):
+            if self.readyState != "live":
+                raise MediaStreamError
+            while True:
+                self._ensure()
+                try:
+                    frame = await self._inner.recv()  # type: ignore[union-attr]
+                except MediaStreamError:
+                    self._close_inner()
+                    if self._last_pts is not None:
+                        self._offset = self._last_pts + 1
+                    continue
+                pts = getattr(frame, "pts", None)
+                if pts is not None:
+                    frame.pts = int(pts) + self._offset
+                    self._last_pts = frame.pts
+                return frame
+
+        def stop(self) -> None:
+            self._close_inner()
+            super().stop()
+
+    probe = MediaPlayer(str(src))
+    has_video = probe.video is not None
+    has_audio = probe.audio is not None
+    for media in (probe.video, probe.audio):
+        if media is None:
+            continue
+        try:
+            media.stop()
+        except Exception:
+            log.debug("webrtc stop probe", exc_info=True)
+    video = LoopingFileTrack(src, "video") if has_video else None
+    audio = LoopingFileTrack(src, "audio") if has_audio else None
+    return video, audio
+
+
 class WebRtcHub:
     def __init__(self) -> None:
         self._pcs: dict[str, object] = {}
-        self._players: dict[str, object] = {}
+        self._tracks: dict[str, list[object]] = {}
 
     async def offer(self, sdp: str, typ: str = "offer") -> dict[str, str]:
         try:
@@ -52,7 +128,6 @@ class WebRtcHub:
                 RTCPeerConnection,
                 RTCSessionDescription,
             )
-            from aiortc.contrib.media import MediaPlayer
         except ImportError as e:
             raise WebRtcUnavailable("aiortc is not installed (hermes-agent[engine])") from e
 
@@ -69,20 +144,23 @@ class WebRtcHub:
         session_id = uuid.uuid4().hex[:12]
         self._pcs[session_id] = pc
 
-        player = MediaPlayer(str(src), loop=True)
-        self._players[session_id] = player
-        if player.video:
-            pc.addTrack(player.video)
-        if player.audio:
-            pc.addTrack(player.audio)
-        if player.video is None and player.audio is None:
+        video, audio = looping_tracks(src)
+        tracks: list[object] = []
+        if video is not None:
+            pc.addTrack(video)  # type: ignore[arg-type]
+            tracks.append(video)
+        if audio is not None:
+            pc.addTrack(audio)  # type: ignore[arg-type]
+            tracks.append(audio)
+        if not tracks:
             await self._drop(session_id)
             raise FileNotFoundError(f"no audio/video tracks in {src}")
+        self._tracks[session_id] = tracks
 
         @pc.on("connectionstatechange")
         async def _on_state() -> None:
             log.info("webrtc %s state=%s", session_id, pc.connectionState)
-            if pc.connectionState in ("failed", "closed", "disconnected"):
+            if pc.connectionState in ("failed", "closed"):
                 await self._drop(session_id)
 
         @pc.on("track")
@@ -100,16 +178,18 @@ class WebRtcHub:
             "source": str(src),
         }
 
+    async def hangup(self, session_id: str) -> bool:
+        if session_id not in self._pcs and session_id not in self._tracks:
+            return False
+        await self._drop(session_id)
+        return True
+
     async def _drop(self, session_id: str) -> None:
-        player = self._players.pop(session_id, None)
-        if player is not None:
-            for media in (getattr(player, "video", None), getattr(player, "audio", None)):
-                if media is None:
-                    continue
-                try:
-                    media.stop()
-                except Exception:
-                    log.debug("webrtc stop track %s", session_id, exc_info=True)
+        for track in self._tracks.pop(session_id, []):
+            try:
+                track.stop()  # type: ignore[union-attr]
+            except Exception:
+                log.debug("webrtc stop track %s", session_id, exc_info=True)
         pc = self._pcs.pop(session_id, None)
         if pc is None:
             return

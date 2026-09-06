@@ -184,3 +184,39 @@ def test_offer_answers_a_recvonly_peer(tmp_path, monkeypatch):
     assert reply["session_id"]
     assert reply["source"] == str(clip)
     assert "m=video" in reply["sdp"]
+
+
+def test_hangup_unknown_session_is_not_dropped():
+    async def _run():
+        return await HermesEngineServicer().WebRtcHangup(
+            SimpleNamespace(session_id="nope"), _Ctx()
+        )
+
+    reply = asyncio.run(_run())
+    assert reply.dropped is False
+
+
+@pytest.mark.skipif(importlib.util.find_spec("aiortc") is None, reason="aiortc extra not installed")
+def test_looping_track_pts_keep_increasing(tmp_path, monkeypatch):
+    clip = tmp_path / "tiny.mp4"
+    _write_tiny_mp4(clip)
+    monkeypatch.setenv("HERMES_WEBRTC_VIDEO", str(clip))
+    reset_config()
+
+    async def _run():
+        video, _audio = ws.looping_tracks(clip)
+        assert video is not None
+        pts = []
+        try:
+            for _ in range(15):
+                frame = await video.recv()
+                if getattr(frame, "pts", None) is not None:
+                    pts.append(int(frame.pts))
+        finally:
+            video.stop()
+        return pts
+
+    pts = asyncio.run(_run())
+    assert len(pts) >= 12
+    assert pts == sorted(pts)
+    assert len(set(pts)) == len(pts)
