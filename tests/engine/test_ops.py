@@ -170,3 +170,65 @@ def test_recent_thoughts_merges_peer_hints_newest_first(monkeypatch):
     assert "recent_thoughts" in [t["function"]["name"] for t in ops.CEREBRAS_TOOLS]
     import json
     assert json.loads(ops.dispatch("recent_thoughts", {"limit": "2"}))["ok"] is True
+
+
+# ── agenda: the peer's Agenda BRIEF + item index, and one item on request ─────
+
+def test_agenda_tool_brief_index_and_single_item(monkeypatch):
+    import json
+    import time
+    from concurrent import futures
+
+    import grpc
+
+    from hsengine.engine import ops
+    from hsengine.engine.generated.zndx.engine.v1 import engine_pb2 as zpb
+    from hsengine.engine.generated.zndx.engine.v1 import engine_pb2_grpc as zpb_grpc
+
+    now_ms = int(time.time() * 1000)
+
+    class FakeAgendaEngine(zpb_grpc.EngineServicer):
+        def __init__(self):
+            self.requests = []
+
+        def ServerQuery(self, request, context):  # noqa: N802
+            self.requests.append(request)
+            resp = zpb.ServerQueryResponse(project="gaius")
+            if request.kind != zpb.SERVER_QUERY_KIND_AGENDA:
+                return resp
+            h = resp.agenda_hint
+            h.project, h.timezone, h.today = "gaius", "UTC", "2026-09-07"
+            h.brief, h.spoken = "Today: one check-in.", "Today there is one check-in at four."
+            h.brief_at_ms = now_ms - 600_000
+            h.total_in_window = 2
+            a = h.items.add(id="scratch/2026-09-06/x_discover-check-in.md", starts_ms=now_ms + 3_600_000, kind="event",
+                            intent="session", title="Discover coherence check-in", summary="Weekly look", day="today")
+            h.items.add(id="scratch/2026-09-06/y_operator-follow-ups.md", kind="list", intent="reminder",
+                        title="Operator follow-ups", open_checks=3, day="week")
+            if request.note_id == a.id:
+                h.item.CopyFrom(a)
+                h.item.body = "Full body of the check-in note."
+            elif request.note_id:
+                h.note = "item not found"
+            return resp
+
+    fake = FakeAgendaEngine()
+    srv = grpc.server(futures.ThreadPoolExecutor(max_workers=2))
+    zpb_grpc.add_EngineServicer_to_server(fake, srv)
+    port = srv.add_insecure_port("127.0.0.1:0"); srv.start()
+    monkeypatch.setattr(ops, "_status_targets", lambda: [f"127.0.0.1:{port}", "127.0.0.1:1"])
+    try:
+        out = ops.agenda()
+        assert out["ok"] and out["briefs"][0]["spoken"].startswith("Today there is one")
+        assert out["briefs"][0]["today"] == "2026-09-07" and out["briefs"][0]["age_min"] in (9, 10, 11)
+        assert [i["title"] for i in out["items"]] == ["Discover coherence check-in", "Operator follow-ups"]
+        assert out["items"][0]["day"] == "today" and out["items"][1]["open_checks"] == 3
+        assert any(p.get("reachable") is False for p in out["peers"])
+        one = json.loads(ops.dispatch("agenda", {"item_id": "scratch/2026-09-06/x_discover-check-in.md"}))
+        assert one["item"]["body"].startswith("Full body") and one["item"]["kind"] == "event"
+        assert fake.requests[-1].note_id == "scratch/2026-09-06/x_discover-check-in.md"
+        missing = json.loads(ops.dispatch("agenda", {"item_id": "nope"}))
+        assert missing["item"] is None and "no peer has an agenda item" in missing["item_note"]
+        assert "agenda" in [t["function"]["name"] for t in ops.CEREBRAS_TOOLS]
+    finally:
+        srv.stop(0)

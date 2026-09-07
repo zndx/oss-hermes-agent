@@ -215,6 +215,99 @@ def recent_thoughts(*, limit: int = 6, since_hours: int = 24, kind: str = "") ->
     }
 
 
+# ── agenda: today · tomorrow · the coming week, and one item on request ───────
+
+_MAX_AGENDA_ITEMS = 16
+
+
+def _brief_agenda_item(project: str, it: Any, *, with_body: bool = False) -> dict[str, Any]:
+    def _when(ms: int) -> str:
+        return datetime.fromtimestamp(int(ms) / 1000, tz=timezone.utc).strftime("%Y-%m-%d %H:%MZ") if ms else ""
+
+    row = {
+        "project": project,
+        "id": it.id,
+        "day": it.day or "",
+        "kind": it.kind or "",
+        "intent": it.intent or "",
+        "title": it.title or "",
+        "summary": it.summary or "",
+        "starts": _when(it.starts_ms),
+        "ends": _when(it.ends_ms),
+        "tags": list(it.tags)[:6],
+        "pinned": bool(it.pinned),
+        "open_checks": int(it.open_checks or 0),
+        "with": it.with_whom or "",
+    }
+    if with_body:
+        row["body"] = it.body or ""
+    return row
+
+
+def agenda(*, item_id: str = "") -> dict[str, Any]:
+    """The Agenda over the protocol: each peer's pre-prepared Agenda BRIEF (today ·
+    tomorrow · the coming week, written by its own workflow with judgement about
+    what matters) plus the index of items it covered; with `item_id`, that one
+    item in full. Peers without an agenda are honest silence; unreachable ones
+    are said. The peers' Agenda notes remain the deep surface."""
+    from hsengine.engine import federation
+    from hsengine.engine.generated.zndx.engine.v1 import engine_pb2 as zpb
+
+    peers: list[dict[str, Any]] = []
+    briefs: list[dict[str, Any]] = []
+    items: list[dict[str, Any]] = []
+    found: dict[str, Any] | None = None
+    for target in _status_targets():
+        resp = federation.query_peer(target, zpb.SERVER_QUERY_KIND_AGENDA, note_id=item_id or "")
+        if resp is None:
+            peers.append({"target": target, "reachable": False})
+            continue
+        h = resp.agenda_hint
+        if not h.project and not h.items and not h.note and not h.brief:
+            continue  # no agenda unit on this peer — honest silence
+        project = h.project or resp.project
+        at = datetime.fromtimestamp(int(h.brief_at_ms) / 1000, tz=timezone.utc) if h.brief_at_ms else None
+        peers.append(
+            {
+                "target": target,
+                "project": project,
+                "reachable": True,
+                "timezone": h.timezone or "",
+                "today": h.today or "",
+                "in_window": int(h.total_in_window),
+                "note": h.note or "",
+            }
+        )
+        if h.spoken or h.brief:
+            briefs.append(
+                {
+                    "project": project,
+                    "spoken": h.spoken or "",
+                    "written": h.brief or "",
+                    "when": at.strftime("%Y-%m-%d %H:%MZ") if at else "",
+                    "age_min": int((datetime.now(timezone.utc) - at).total_seconds() // 60) if at else None,
+                    "timezone": h.timezone or "",
+                    "today": h.today or "",
+                }
+            )
+        items.extend(_brief_agenda_item(project, it) for it in h.items)
+        if item_id and h.item and h.item.id:
+            found = _brief_agenda_item(project, h.item, with_body=True)
+    out: dict[str, Any] = {
+        "ok": True,
+        "when": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%MZ"),
+        "briefs": briefs,
+        "items": items[:_MAX_AGENDA_ITEMS],
+        "peers": peers,
+    }
+    if item_id:
+        out["item_id"] = item_id
+        out["item"] = found
+        if found is None:
+            out["item_note"] = "no peer has an agenda item with that id — read the id from a previous agenda call"
+    return out
+
+
 CEREBRAS_TOOLS: list[dict[str, Any]] = [
     {
         "type": "function",
@@ -289,8 +382,38 @@ CEREBRAS_TOOLS: list[dict[str, Any]] = [
             },
         },
     },
+    {
+        "type": "function",
+        "function": {
+            "name": "agenda",
+            "description": (
+                "The agenda: what is on today, what matters tomorrow and in the "
+                "coming week. Returns each project's pre-prepared Agenda BRIEF "
+                "(briefs[].spoken is plain speech, written by its own workflow "
+                "with judgement about what to include) plus the index of the "
+                "items it covered — each with an id, when, kind (session, "
+                "reminder, brief) and title. Call this whenever they ask about "
+                "the agenda, the schedule, meetings, reminders, what's coming up, "
+                "what's planned for today or this week — casual phrasing counts. "
+                "Speak the brief in your own words. When they ask about ONE item "
+                "('tell me about that meeting tomorrow'), call agenda again with "
+                "item_id set to that item's id from the index to get its full "
+                "content. If there is no brief or the note says the agenda is "
+                "empty, say so plainly."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "item_id": {
+                        "type": "string",
+                        "description": "An item id from a previous agenda call, to read that item in full. Empty for the brief and index.",
+                    }
+                },
+                "additionalProperties": False,
+            },
+        },
+    },
 ]
-
 
 def dispatch(name: str, args: dict[str, Any] | None = None) -> str:
     args = args or {}
@@ -315,4 +438,6 @@ def dispatch(name: str, args: dict[str, Any] | None = None) -> str:
             recent_thoughts(limit=limit, since_hours=since_hours, kind=str(args.get("kind") or "")),
             default=str,
         )
+    if name == "agenda":
+        return json.dumps(agenda(item_id=str(args.get("item_id") or "")), default=str)
     return json.dumps({"ok": False, "error": f"unknown tool {name}"})

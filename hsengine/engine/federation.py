@@ -193,6 +193,7 @@ def query_peer(
     limit: int = 0,
     since_ms: int = 0,
     stream: str = "",
+    note_id: str = "",
     timeout: float = 8.0,
 ):
     """One ``Engine/ServerQuery`` at a peer engine (two hops: the voice loop asks
@@ -206,7 +207,7 @@ def query_peer(
         return None
     req = zpb.ServerQueryRequest(
         kind=kind, origin_project="hermes", limit=int(limit or 0),
-        since_ms=int(since_ms or 0), stream=str(stream or ""),
+        since_ms=int(since_ms or 0), stream=str(stream or ""), note_id=str(note_id or ""),
     )
     try:
         with grpc.insecure_channel(target) as ch:

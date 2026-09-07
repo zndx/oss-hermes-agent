@@ -47,6 +47,7 @@ class ServerQueryKind(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
     SERVER_QUERY_KIND_CONTRIBUTIONS: _ClassVar[ServerQueryKind]
     SERVER_QUERY_KIND_ACTIVITIES: _ClassVar[ServerQueryKind]
     SERVER_QUERY_KIND_THOUGHTS: _ClassVar[ServerQueryKind]
+    SERVER_QUERY_KIND_AGENDA: _ClassVar[ServerQueryKind]
 
 class ActivityState(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
     __slots__ = ()
@@ -116,6 +117,7 @@ SERVER_QUERY_KIND_COGNITION: ServerQueryKind
 SERVER_QUERY_KIND_CONTRIBUTIONS: ServerQueryKind
 SERVER_QUERY_KIND_ACTIVITIES: ServerQueryKind
 SERVER_QUERY_KIND_THOUGHTS: ServerQueryKind
+SERVER_QUERY_KIND_AGENDA: ServerQueryKind
 ACTIVITY_STATE_UNSPECIFIED: ActivityState
 ACTIVITY_QUEUED: ActivityState
 ACTIVITY_RUNNING: ActivityState
@@ -490,7 +492,7 @@ class ServerQueryRequest(_message.Message):
     def __init__(self, kind: _Optional[_Union[ServerQueryKind, str]] = ..., ttl: _Optional[int] = ..., nonce: _Optional[str] = ..., origin_project: _Optional[str] = ..., note_id: _Optional[str] = ..., limit: _Optional[int] = ..., since_ms: _Optional[int] = ..., stream: _Optional[str] = ...) -> None: ...
 
 class ServerQueryResponse(_message.Message):
-    __slots__ = ("project", "remotes", "head", "peers", "schedules", "note", "surfaces", "queues", "workloads", "posture", "products", "cognition", "contributions", "activities", "thoughts_hint")
+    __slots__ = ("project", "remotes", "head", "peers", "schedules", "note", "surfaces", "queues", "workloads", "posture", "products", "cognition", "contributions", "activities", "thoughts_hint", "agenda_hint")
     PROJECT_FIELD_NUMBER: _ClassVar[int]
     REMOTES_FIELD_NUMBER: _ClassVar[int]
     HEAD_FIELD_NUMBER: _ClassVar[int]
@@ -506,6 +508,7 @@ class ServerQueryResponse(_message.Message):
     CONTRIBUTIONS_FIELD_NUMBER: _ClassVar[int]
     ACTIVITIES_FIELD_NUMBER: _ClassVar[int]
     THOUGHTS_HINT_FIELD_NUMBER: _ClassVar[int]
+    AGENDA_HINT_FIELD_NUMBER: _ClassVar[int]
     project: str
     remotes: _containers.RepeatedCompositeFieldContainer[GitRemote]
     head: str
@@ -521,7 +524,66 @@ class ServerQueryResponse(_message.Message):
     contributions: ContributionsHint
     activities: _containers.RepeatedCompositeFieldContainer[Activity]
     thoughts_hint: ThoughtsHint
-    def __init__(self, project: _Optional[str] = ..., remotes: _Optional[_Iterable[_Union[GitRemote, _Mapping]]] = ..., head: _Optional[str] = ..., peers: _Optional[_Iterable[_Union[PeerHint, _Mapping]]] = ..., schedules: _Optional[_Iterable[_Union[ScheduleHint, _Mapping]]] = ..., note: _Optional[_Union[WikiNote, _Mapping]] = ..., surfaces: _Optional[_Iterable[_Union[Surface, _Mapping]]] = ..., queues: _Optional[_Iterable[_Union[QueueHint, _Mapping]]] = ..., workloads: _Optional[_Iterable[_Union[WorkloadOffer, _Mapping]]] = ..., posture: _Optional[_Union[SourcePosture, _Mapping]] = ..., products: _Optional[_Iterable[_Union[ProductHint, _Mapping]]] = ..., cognition: _Optional[_Union[CognitionHint, _Mapping]] = ..., contributions: _Optional[_Union[ContributionsHint, _Mapping]] = ..., activities: _Optional[_Iterable[_Union[Activity, _Mapping]]] = ..., thoughts_hint: _Optional[_Union[ThoughtsHint, _Mapping]] = ...) -> None: ...
+    agenda_hint: AgendaHint
+    def __init__(self, project: _Optional[str] = ..., remotes: _Optional[_Iterable[_Union[GitRemote, _Mapping]]] = ..., head: _Optional[str] = ..., peers: _Optional[_Iterable[_Union[PeerHint, _Mapping]]] = ..., schedules: _Optional[_Iterable[_Union[ScheduleHint, _Mapping]]] = ..., note: _Optional[_Union[WikiNote, _Mapping]] = ..., surfaces: _Optional[_Iterable[_Union[Surface, _Mapping]]] = ..., queues: _Optional[_Iterable[_Union[QueueHint, _Mapping]]] = ..., workloads: _Optional[_Iterable[_Union[WorkloadOffer, _Mapping]]] = ..., posture: _Optional[_Union[SourcePosture, _Mapping]] = ..., products: _Optional[_Iterable[_Union[ProductHint, _Mapping]]] = ..., cognition: _Optional[_Union[CognitionHint, _Mapping]] = ..., contributions: _Optional[_Union[ContributionsHint, _Mapping]] = ..., activities: _Optional[_Iterable[_Union[Activity, _Mapping]]] = ..., thoughts_hint: _Optional[_Union[ThoughtsHint, _Mapping]] = ..., agenda_hint: _Optional[_Union[AgendaHint, _Mapping]] = ...) -> None: ...
+
+class AgendaHintItem(_message.Message):
+    __slots__ = ("id", "starts_ms", "ends_ms", "kind", "intent", "title", "summary", "tags", "pinned", "open_checks", "with_whom", "body", "created_ms", "day")
+    ID_FIELD_NUMBER: _ClassVar[int]
+    STARTS_MS_FIELD_NUMBER: _ClassVar[int]
+    ENDS_MS_FIELD_NUMBER: _ClassVar[int]
+    KIND_FIELD_NUMBER: _ClassVar[int]
+    INTENT_FIELD_NUMBER: _ClassVar[int]
+    TITLE_FIELD_NUMBER: _ClassVar[int]
+    SUMMARY_FIELD_NUMBER: _ClassVar[int]
+    TAGS_FIELD_NUMBER: _ClassVar[int]
+    PINNED_FIELD_NUMBER: _ClassVar[int]
+    OPEN_CHECKS_FIELD_NUMBER: _ClassVar[int]
+    WITH_WHOM_FIELD_NUMBER: _ClassVar[int]
+    BODY_FIELD_NUMBER: _ClassVar[int]
+    CREATED_MS_FIELD_NUMBER: _ClassVar[int]
+    DAY_FIELD_NUMBER: _ClassVar[int]
+    id: str
+    starts_ms: int
+    ends_ms: int
+    kind: str
+    intent: str
+    title: str
+    summary: str
+    tags: _containers.RepeatedScalarFieldContainer[str]
+    pinned: bool
+    open_checks: int
+    with_whom: str
+    body: str
+    created_ms: int
+    day: str
+    def __init__(self, id: _Optional[str] = ..., starts_ms: _Optional[int] = ..., ends_ms: _Optional[int] = ..., kind: _Optional[str] = ..., intent: _Optional[str] = ..., title: _Optional[str] = ..., summary: _Optional[str] = ..., tags: _Optional[_Iterable[str]] = ..., pinned: _Optional[bool] = ..., open_checks: _Optional[int] = ..., with_whom: _Optional[str] = ..., body: _Optional[str] = ..., created_ms: _Optional[int] = ..., day: _Optional[str] = ...) -> None: ...
+
+class AgendaHint(_message.Message):
+    __slots__ = ("project", "brief", "spoken", "brief_at_ms", "brief_id", "timezone", "today", "items", "item", "total_in_window", "note")
+    PROJECT_FIELD_NUMBER: _ClassVar[int]
+    BRIEF_FIELD_NUMBER: _ClassVar[int]
+    SPOKEN_FIELD_NUMBER: _ClassVar[int]
+    BRIEF_AT_MS_FIELD_NUMBER: _ClassVar[int]
+    BRIEF_ID_FIELD_NUMBER: _ClassVar[int]
+    TIMEZONE_FIELD_NUMBER: _ClassVar[int]
+    TODAY_FIELD_NUMBER: _ClassVar[int]
+    ITEMS_FIELD_NUMBER: _ClassVar[int]
+    ITEM_FIELD_NUMBER: _ClassVar[int]
+    TOTAL_IN_WINDOW_FIELD_NUMBER: _ClassVar[int]
+    NOTE_FIELD_NUMBER: _ClassVar[int]
+    project: str
+    brief: str
+    spoken: str
+    brief_at_ms: int
+    brief_id: str
+    timezone: str
+    today: str
+    items: _containers.RepeatedCompositeFieldContainer[AgendaHintItem]
+    item: AgendaHintItem
+    total_in_window: int
+    note: str
+    def __init__(self, project: _Optional[str] = ..., brief: _Optional[str] = ..., spoken: _Optional[str] = ..., brief_at_ms: _Optional[int] = ..., brief_id: _Optional[str] = ..., timezone: _Optional[str] = ..., today: _Optional[str] = ..., items: _Optional[_Iterable[_Union[AgendaHintItem, _Mapping]]] = ..., item: _Optional[_Union[AgendaHintItem, _Mapping]] = ..., total_in_window: _Optional[int] = ..., note: _Optional[str] = ...) -> None: ...
 
 class Thought(_message.Message):
     __slots__ = ("id", "at_ms", "kind", "title", "summary", "excerpt", "domains", "salience", "chain_id", "generation", "note_path", "profile", "model")
