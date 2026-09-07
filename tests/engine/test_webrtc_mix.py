@@ -67,6 +67,19 @@ def test_board_pull_none_when_empty():
     assert board.pull(16, 48000) is None
 
 
+def test_board_24k_speech_keeps_wall_clock_at_48k():
+    """Kyutai TTS is 24 kHz; playing it as 48 kHz is a chipmunk (pitched-up) voice."""
+    board = SpeechBoard()
+    board.push(np.ones(24000, dtype=np.float32) * 0.3, sample_rate=24000)
+    got = 0
+    while True:
+        chunk = board.pull(960, 48000)
+        if chunk is None:
+            break
+        got += int(chunk.size)
+    assert got == 48000
+
+
 def test_board_serializes_sources_and_preempts():
     board = SpeechBoard()
     a = np.ones(4, dtype=np.float32) * 0.4
