@@ -111,6 +111,23 @@ def test_clip_is_silence_after_first_loop_unless_speech():
     assert int(out[0]) > 10000
 
 
+def test_apply_mix_frame_puts_speech_on_silence():
+    import av
+    from fractions import Fraction
+
+    from hsengine.engine.webrtc_mix import SpeechBoard, apply_mix_frame
+
+    zeros = np.zeros((2, 960), dtype=np.float32)
+    frame = av.AudioFrame.from_ndarray(zeros, format="fltp", layout="stereo")
+    frame.sample_rate = 48000
+    frame.pts = 0
+    frame.time_base = Fraction(1, 48000)
+    board = SpeechBoard()
+    board.push(np.ones(960, dtype=np.float32) * 0.4, sample_rate=48000)
+    out = apply_mix_frame(frame, board)
+    assert float(np.max(np.abs(out.to_ndarray()))) > 0.1
+
+
 def test_apply_mix_frame_does_not_keep_clip_after_gate():
     import av
 

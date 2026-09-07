@@ -205,36 +205,42 @@ class SpeechBoard:
         return chunk
 
 
+def _planar_stereo(mono: Any, n: int) -> Any:
+    import numpy as np
+
+    fitted = _fit(_as_float_mono(mono), n)
+    return np.stack([fitted, fitted], axis=0).astype(np.float32)
+
+
 def apply_mix_frame(frame: Any, board: SpeechBoard, gate: SoundtrackGate | None = None) -> Any:
     """Return a new audio frame with speech mixed over the clip, or the original."""
     try:
         import numpy as np
         import av
+        from fractions import Fraction
     except Exception:
         return frame
     try:
         arr = frame.to_ndarray()
-        silenced = gate is not None and not gate.clip_live()
-        if silenced:
-            arr = np.zeros_like(arr)
         n = audio_frame_samples(frame, arr)
-        rate = int(getattr(frame, "sample_rate", 0) or CANON_RATE)
-        mixed = mix_pcm(arr, board.pull(n, rate), n_samples=n)
-        # After the first video loop, arr is a zero copy — it equals mixed when
-        # there is no speech, but the original frame still has clip samples.
-        if not silenced and (mixed is arr or np.array_equal(mixed, arr)):
+        if n <= 0:
             return frame
-        fmt = getattr(getattr(frame, "format", None), "name", None) or "s16"
-        layout = getattr(getattr(frame, "layout", None), "name", None) or "stereo"
-        out = av.AudioFrame.from_ndarray(np.asarray(mixed), format=fmt, layout=layout)
+        rate = int(getattr(frame, "sample_rate", 0) or CANON_RATE)
+        speech = board.pull(n, rate)
+        if speech is None and (gate is None or gate.clip_live()):
+            return frame
+        if speech is None:
+            planar = np.zeros((2, n), dtype=np.float32)
+        else:
+            planar = _planar_stereo(speech, n)
+        out = av.AudioFrame.from_ndarray(planar, format="fltp", layout="stereo")
         out.pts = frame.pts
         tb = getattr(frame, "time_base", None)
-        if tb is not None:
-            out.time_base = tb
+        out.time_base = tb if tb is not None else Fraction(1, rate)
         out.sample_rate = rate
         return out
     except Exception:
-        log.debug("audio mix failed", exc_info=True)
+        log.warning("audio mix failed", exc_info=True)
         return frame
 
 
@@ -266,10 +272,13 @@ def _silence_track(sample_rate: int = CANON_RATE, frame_samples: int = 960) -> A
                 wait = due - time.monotonic()
                 if wait > 0:
                     await asyncio.sleep(wait)
-            arr = np.zeros((self._n, 2), dtype=np.int16)
-            frame = av.AudioFrame.from_ndarray(arr, format="s16", layout="stereo")
+            from fractions import Fraction
+
+            arr = np.zeros((2, self._n), dtype=np.float32)
+            frame = av.AudioFrame.from_ndarray(arr, format="fltp", layout="stereo")
             frame.sample_rate = self._rate
             frame.pts = self._pts
+            frame.time_base = Fraction(1, self._rate)
             self._pts += self._n
             return frame
 
