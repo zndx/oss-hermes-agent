@@ -59,8 +59,8 @@ text_bos_token = 1
 [modules.tts_py.py]
 log_folder = "./logs"
 voice_folder = "hf-snapshot://kyutai/tts-voices/**/*.safetensors"
-# Expresso ex04 calm: studio 48 kHz actress (CC BY-NC). VCTK p329 was thin/high.
-default_voice = "expresso/ex04-ex02_calm_002_channel1_480s.wav"
+# Alba MacKenna "Moment" series: low close-mic, not the game-VO casual take.
+default_voice = "alba-mackenna/a-moment-by.wav"
 cfg_coef = 2.0
 cfg_is_no_text = true
 padding_between = 1
