@@ -1,6 +1,6 @@
 """Kyutai TTS (moshi-server /api/tts_streaming) → SpeechBoard PCM.
 
-Cerebras return text is spoken in one voice and mixed over the clip soundtrack.
+Cerebras return text is spoken in one voice on the WebRTC audio track.
 """
 from __future__ import annotations
 

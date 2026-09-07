@@ -211,8 +211,9 @@ def test_looping_track_pts_keep_increasing(tmp_path, monkeypatch):
     reset_config()
 
     async def _run():
-        video, _audio, gate = ws.looping_tracks(clip)
+        video, audio, gate = ws.looping_tracks(clip)
         assert video is not None
+        assert audio is None
         assert gate.clip_live() is True
         pts = []
         try:

@@ -43,10 +43,10 @@ def video_path() -> Path | None:
 
 
 def looping_tracks(src: Path) -> tuple[object | None, object | None, object]:
-    """Video/audio tracks that replay *src* with monotonic PTS.
+    """Looping video from *src*. Clip soundtrack is not used (agent speech only).
 
-    Returns (video, audio, soundtrack_gate). The gate flips off clip audio
-    after the first video pass (audio-only clips: after the first audio pass).
+    Returns (video, None, soundtrack_gate). Gate is unused while the file
+    bed is omitted; kept so we can restore clip audio later.
     """
     from aiortc import MediaStreamTrack
     from aiortc.contrib.media import MediaPlayer
@@ -110,7 +110,6 @@ def looping_tracks(src: Path) -> tuple[object | None, object | None, object]:
 
     probe = MediaPlayer(str(src))
     has_video = probe.video is not None
-    has_audio = probe.audio is not None
     for media in (probe.video, probe.audio):
         if media is None:
             continue
@@ -120,8 +119,7 @@ def looping_tracks(src: Path) -> tuple[object | None, object | None, object]:
             log.debug("webrtc stop probe", exc_info=True)
     gate = SoundtrackGate(has_video=has_video)
     video = LoopingFileTrack(src, "video", gate) if has_video else None
-    audio = LoopingFileTrack(src, "audio", gate) if has_audio else None
-    return video, audio, gate
+    return video, None, gate
 
 
 class WebRtcHub:
@@ -170,7 +168,7 @@ class WebRtcHub:
         except Exception:
             await self._drop(session_id)
             raise
-        video, clip_audio, gate = looping_tracks(src)
+        video, _clip_audio, _gate = looping_tracks(src)
         speech = SpeechBoard()
         self._speech[session_id] = speech
         tracks: list[object] = []
@@ -178,12 +176,12 @@ class WebRtcHub:
             painted = caption_track(video, board) if captions else video
             pc.addTrack(painted)  # type: ignore[arg-type]
             tracks.append(painted)
-        mixed = mix_audio_track(clip_audio, speech, gate)
+        mixed = mix_audio_track(None, speech)
         pc.addTrack(mixed)  # type: ignore[arg-type]
         tracks.append(mixed)
-        if video is None and clip_audio is None:
+        if video is None:
             await self._drop(session_id)
-            raise FileNotFoundError(f"no audio/video tracks in {src}")
+            raise FileNotFoundError(f"no video track in {src}")
         self._tracks[session_id] = tracks
 
         @pc.on("connectionstatechange")

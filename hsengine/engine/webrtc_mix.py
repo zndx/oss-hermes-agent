@@ -1,9 +1,7 @@
-"""Outbound WebRTC audio mix: combined agent speech preempts clip soundtrack.
+"""Outbound WebRTC audio mix: agent speech over silence (clip bed omitted).
 
-One audio track on the PeerConnection. Clip audio plays through the first
-video pass; after that EOF the soundtrack is silenced. Agent speech always
-replaces clip samples while queued. Empty / all-zero speech falls through
-to whatever the clip is at that moment (first-pass audio, then silence).
+One audio track on the PeerConnection. File soundtrack is not mixed while
+dialog is iterated. SpeechBoard PCM replaces silence when queued.
 """
 from __future__ import annotations
 
