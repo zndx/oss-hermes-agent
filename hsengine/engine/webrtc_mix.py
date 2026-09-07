@@ -15,7 +15,9 @@ from typing import Any
 log = logging.getLogger("hsengine.engine.webrtc.mix")
 
 CANON_RATE = 48000
-_MAX_SAMPLES = CANON_RATE * 30
+# Thoughts/agenda spoken can run past 30s. A ring that pops left ate the
+# start of the utterance ("jumps in mid-sentence").
+_MAX_SAMPLES = CANON_RATE * 120
 _SPEECH_FLOOR = 1e-4  # below this, treat as silence → clip plays
 
 

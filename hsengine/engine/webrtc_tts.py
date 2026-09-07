@@ -49,21 +49,20 @@ def tts_host_port() -> tuple[str, int]:
     return host, port
 
 
-async def synthesize(text: str) -> Any:
-    """Stream Kyutai TTS; return float32 mono PCM at 24 kHz, or empty array."""
+async def synthesize_chunks(text: str):
+    """Yield float32 mono PCM chunks at 24 kHz as Kyutai produces them."""
     import msgpack
     import numpy as np
     import websockets
 
     cleaned = " ".join((text or "").split())
     if not cleaned:
-        return np.zeros(0, dtype=np.float32)
+        return
     voice = tts_voice()
     params = {"voice": voice, "format": "PcmMessagePack"}
     uri = f"{tts_url()}?{urlencode(params)}"
     log.info("tts voice=%s chars=%s", voice, len(cleaned))
     headers = {"kyutai-api-key": tts_key()}
-    chunks: list[Any] = []
     async with websockets.connect(
         uri, additional_headers=headers, open_timeout=10, max_size=2**24
     ) as ws:
@@ -77,19 +76,41 @@ async def synthesize(text: str) -> Any:
             if data.get("type") == "Audio":
                 pcm = np.asarray(data.get("pcm") or [], dtype=np.float32).reshape(-1)
                 if pcm.size:
-                    chunks.append(pcm)
+                    yield pcm
+
+
+async def synthesize(text: str) -> Any:
+    """Stream Kyutai TTS; return float32 mono PCM at 24 kHz, or empty array."""
+    import numpy as np
+
+    chunks = [c async for c in synthesize_chunks(text)]
     if not chunks:
         return np.zeros(0, dtype=np.float32)
     return np.concatenate(chunks)
 
 
+def _push_chunks(boards: list[Any], pcm: Any, source: str) -> int:
+    n = int(getattr(pcm, "size", 0) or 0)
+    if n == 0:
+        return 0
+    for board in boards:
+        board.push(pcm, source=source, sample_rate=TTS_RATE)
+    return n
+
+
 def speak_into(board: Any, text: str, *, source: str = "cerebras") -> None:
-    """Block until TTS finishes, then queue PCM on *board* (preempts clip audio)."""
-    pcm = asyncio.run(synthesize(text))
-    if getattr(pcm, "size", 0) == 0:
+    """Stream TTS onto *board* as chunks arrive (preempts clip audio)."""
+
+    async def _run() -> int:
+        total = 0
+        async for pcm in synthesize_chunks(text):
+            total += _push_chunks([board], pcm, source)
+        return total
+
+    n = asyncio.run(_run())
+    if n == 0:
         raise RuntimeError("Kyutai TTS returned no audio")
-    board.push(pcm, source=source, sample_rate=TTS_RATE)
-    log.info("queued %s samples from %s (%s chars)", pcm.size, source, len(text or ""))
+    log.info("queued %s samples from %s (%s chars)", n, source, len(text or ""))
 
 
 def speak_on_session_boards(text: str, *, source: str = "cerebras") -> None:
@@ -98,9 +119,14 @@ def speak_on_session_boards(text: str, *, source: str = "cerebras") -> None:
     boards = [b for b in getattr(HUB, "_speech", {}).values() if b is not None]
     if not boards:
         return
-    pcm = asyncio.run(synthesize(text))
-    if getattr(pcm, "size", 0) == 0:
+
+    async def _run() -> int:
+        total = 0
+        async for pcm in synthesize_chunks(text):
+            total += _push_chunks(boards, pcm, source)
+        return total
+
+    n = asyncio.run(_run())
+    if n == 0:
         raise RuntimeError("Kyutai TTS returned no audio")
-    for board in boards:
-        board.push(pcm, source=source, sample_rate=TTS_RATE)
-    log.info("spoke %s onto %s board(s)", source, len(boards))
+    log.info("spoke %s onto %s board(s) (%s samples)", source, len(boards), n)

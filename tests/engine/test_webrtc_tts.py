@@ -16,11 +16,11 @@ def test_tts_url_is_the_moshi_streaming_path():
 def test_speak_into_preempts_clip_on_the_board(monkeypatch):
     pcm = np.ones(4800, dtype=np.float32) * 0.4
 
-    async def _synth(text: str):
+    async def _chunks(text: str):
         assert "hello" in text.lower()
-        return pcm
+        yield pcm
 
-    monkeypatch.setattr("hsengine.engine.webrtc_tts.synthesize", _synth)
+    monkeypatch.setattr("hsengine.engine.webrtc_tts.synthesize_chunks", _chunks)
     board = SpeechBoard()
     speak_into(board, "hello from cerebras", source="cerebras")
     assert board.speaking() is True

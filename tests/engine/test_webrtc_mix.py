@@ -67,6 +67,17 @@ def test_board_pull_none_when_empty():
     assert board.pull(16, 48000) is None
 
 
+def test_board_keeps_the_start_of_a_long_utterance():
+    """A thoughts briefing is longer than the old 30s ring; popping left skipped the first sentence."""
+    board = SpeechBoard()
+    n = 48000 * 40
+    pcm = np.linspace(0.1, 0.9, n, dtype=np.float32)
+    board.push(pcm, sample_rate=48000)
+    first = board.pull(4800, 48000)
+    assert first is not None
+    assert abs(float(first[0]) - 0.1) < 0.02
+
+
 def test_board_24k_speech_keeps_wall_clock_at_48k():
     """Kyutai TTS is 24 kHz; playing it as 48 kHz is a chipmunk (pitched-up) voice."""
     board = SpeechBoard()
