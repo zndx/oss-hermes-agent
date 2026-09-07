@@ -10,10 +10,11 @@ claims ARE the YuniKorn configuration and **Signals applies them**. This
 tree never calls `kubectl`. CUDA `moshi-server` (`:5080`) then starts on
 the host and stops on the last Disconnect:
 
-1. `Scheduler/DeclareActivity` with claims
-   `root.internal.inference.agent-rtc` GPU 1 and
-   `root.external.token-metered` GPU 0 (cerebras-thinking).
-2. Signals materialises the Airflow run and asserts those claims.
+1. `Scheduler/DeclareActivity` with the local GPU claim
+   `root.internal.inference.agent-rtc` GPU 1 (moshi / Kyutai STT).
+   Cerebras thinking is `root.external.token-metered`: remote pay-per-token
+   Qwen 3.8-27B, no local GPU and no YK GPU floor.
+2. Signals materialises the Airflow run and asserts the agent-rtc claim.
 3. Host moshi-server starts (advisory `/tmp/zndx-gpu-leases` so CUDA does
    not collide with another local process).
 4. Hermes Complete for `agent`/`thinking` uses Cerebras `qwen-3.8-27b`.

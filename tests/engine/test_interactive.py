@@ -58,9 +58,15 @@ def test_require_declared_workload_denies_missing_claims():
 
 
 def test_require_declared_workload_denies_activity_not_in_force():
-    claims = [
-        {"leaf": "root.internal.inference.agent-rtc", "gpu": 1},
-        {"leaf": "root.external.token-metered", "gpu": 0},
-    ]
+    claims = [{"leaf": "root.internal.inference.agent-rtc", "gpu": 1}]
     with pytest.raises(RuntimeError, match="not in force"):
         interactive._require_declared_workload({"state": "failed", "claims": claims})
+
+
+def test_require_declared_workload_denies_external_local_gpu():
+    claims = [
+        {"leaf": "root.internal.inference.agent-rtc", "gpu": 1},
+        {"leaf": "root.external.token-metered", "gpu": 1},
+    ]
+    with pytest.raises(RuntimeError, match="must not claim local GPUs"):
+        interactive._require_declared_workload({"state": "running", "claims": claims})

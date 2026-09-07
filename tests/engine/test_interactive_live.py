@@ -11,7 +11,7 @@ import socket
 import pytest
 
 from hsengine.engine import coordination, interactive
-from hsengine.engine.yk_sentinel import CEREBRAS_QUEUE, QUEUE, moshi_serving
+from hsengine.engine.yk_sentinel import QUEUE, moshi_serving
 
 # conftest strips *_API_KEY before each test. Snapshot at import.
 _KEY_SNAP = os.environ.get("CEREBRAS_API_KEY") or ""
@@ -86,7 +86,7 @@ def test_interactive_enter_declares_then_starts_moshi():
         assert activity is not None
         claims = {(c["leaf"], int(c["gpu"])) for c in activity["claims"]}
         assert (QUEUE, 1) in claims
-        assert (CEREBRAS_QUEUE, 0) in claims
+        assert not any(leaf.startswith("root.external.") and gpu for leaf, gpu in claims)
         assert moshi_serving() or _port_up("127.0.0.1", 5080)
         result = interactive.complete_cerebras(
             prompt="Reply with the single word: pong",

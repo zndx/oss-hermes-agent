@@ -22,11 +22,7 @@ import httpx
 
 from hsengine.engine import coordination
 from hsengine.engine.federation import CompleteResult
-from hsengine.engine.yk_sentinel import (
-    CEREBRAS_QUEUE,
-    QUEUE as AGENT_RTC_QUEUE,
-    moshi_serving,
-)
+from hsengine.engine.yk_sentinel import QUEUE as AGENT_RTC_QUEUE, moshi_serving
 
 log = logging.getLogger("hsengine.engine.interactive")
 
@@ -151,23 +147,29 @@ def _moshi_off() -> None:
 
 
 def _require_declared_workload(activity: dict) -> None:
-    """Signals must echo the agent-rtc claims and leave the Activity in force.
+    """Signals must echo the agent-rtc GPU claim and leave the Activity in force.
 
-    Those claims are the workload configuration; Signals applies them to
-    YuniKorn. Missing claims or a non-in-force state means Connect is denied
-    — never a local kubectl apply.
+    Those claims are the local YuniKorn configuration; Signals applies them.
+    Cerebras thinking is remote token-metered and must not appear as a GPU
+    floor. Missing claims or a non-in-force state means Connect is denied.
     """
     claims = {
         (str(c.get("leaf") or ""), int(c.get("gpu") or 0))
         for c in (activity.get("claims") or [])
         if isinstance(c, dict)
     }
-    needed = {(AGENT_RTC_QUEUE, 1), (CEREBRAS_QUEUE, 0)}
+    needed = {(AGENT_RTC_QUEUE, 1)}
     if not needed <= claims:
         raise RuntimeError(
             "DENY: Signals did not echo the agent-rtc workload claims on the "
             f"declared activity (got {sorted(claims)!r})"
         )
+    for leaf, gpu in claims:
+        if str(leaf).startswith("root.external.") and gpu:
+            raise RuntimeError(
+                f"DENY: {leaf} is external (Cerebras/token-metered) and must not "
+                f"claim local GPUs (gpu={gpu})"
+            )
     state = str(activity.get("state") or "")
     if state not in coordination.IN_FORCE:
         raise RuntimeError(

@@ -1,10 +1,11 @@
-"""Host occupancy for the agent-rtc CUDA worker.
+"""Host occupancy for the agent-rtc CUDA worker (Kyutai STT).
 
 YuniKorn configuration is Signals' job: this engine declares the interactive
 Activity (claims = queue config) over signals-protocol, and Signals applies
 it. This module never talks to Kubernetes. It only:
 
-- names the leaves the Activity claims (imported by coordination)
+- names the leaves (agent-rtc is the local GPU claim; token-metered is the
+  remote Cerebras API and takes no local GPU)
 - takes an advisory 1-GPU host lease so moshi-server does not collide with
   another local CUDA process
 - knows whether moshi-server is listening

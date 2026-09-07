@@ -29,7 +29,7 @@ from hsengine.engine.generated.zndx.engine.v1 import engine_pb2 as zpb
 from hsengine.engine.generated.zndx.scheduler.v1 import scheduler_pb2 as spb
 from hsengine.engine.generated.zndx.scheduler.v1 import scheduler_pb2_grpc as spb_grpc
 from hsengine.engine.supervision_bus import get_bus
-from hsengine.engine.yk_sentinel import CEREBRAS_QUEUE, QUEUE as AGENT_RTC_QUEUE
+from hsengine.engine.yk_sentinel import QUEUE as AGENT_RTC_QUEUE
 
 log = logging.getLogger("hsengine.engine.coordination")
 
@@ -362,7 +362,7 @@ def declare_interactive(
     *,
     precludes: list[str] | None = None,
     postures: dict[str, str] | None = None,
-    reason: str = "agent-rtc interactive session (moshi + cerebras-thinking)",
+    reason: str = "agent-rtc interactive session (moshi local GPU; Cerebras Qwen 3.8-27B remote)",
     addr: str | None = None,
 ) -> ActivityLease:
     """Declare the interactive session to Signals. Fail-fast: raises with
@@ -378,8 +378,9 @@ def declare_interactive(
         precludes=list(interactive_precludes() if precludes is None else precludes),
         reason=reason,
     )
+    # Local GPU only: Kyutai STT on agent-rtc. Cerebras thinking is
+    # root.external.token-metered — remote pay-per-token API, no local GPU.
     req.claims.append(zpb.ActivityClaim(leaf=AGENT_RTC_QUEUE, gpu=1))
-    req.claims.append(zpb.ActivityClaim(leaf=CEREBRAS_QUEUE, gpu=0))
     for k, v in (interactive_postures() if postures is None else postures).items():
         req.postures[k] = v
     channel, stub = _stub(addr)

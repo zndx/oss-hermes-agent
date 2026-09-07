@@ -22,7 +22,7 @@ from hsengine.engine.generated.zndx.scheduler.v1 import scheduler_pb2_grpc as sp
 from hsengine.engine.generated.zndx.supervision.v1 import supervision_pb2 as sv
 from hsengine.engine.supervision_bus import KIND_ACTIVITY, SupervisionEvent, get_bus, init_bus
 from hsengine.engine.supervision_servicer import event_to_proto
-from hsengine.engine.yk_sentinel import CEREBRAS_QUEUE, QUEUE as AGENT_RTC_QUEUE
+from hsengine.engine.yk_sentinel import QUEUE as AGENT_RTC_QUEUE
 
 
 # ── fake Signals scheduler ────────────────────────────────────────────────────
@@ -148,7 +148,7 @@ def test_declare_interactive_request_shape(signals):
     assert req.kind == "interactive_session"
     assert req.owner == "webrtc:abc123"
     assert uuid.UUID(req.request_id).version == 7
-    assert [(c.leaf, c.gpu) for c in req.claims] == [(AGENT_RTC_QUEUE, 1), (CEREBRAS_QUEUE, 0)]
+    assert [(c.leaf, c.gpu) for c in req.claims] == [(AGENT_RTC_QUEUE, 1)]
     assert dict(req.postures) == {"gaius.endpoint.thinking": "hold-uptime"}
     assert list(req.precludes) == []
     assert "interactive" in req.reason
@@ -156,10 +156,7 @@ def test_declare_interactive_request_shape(signals):
     assert lease.activity["state"] == "running"
     assert lease.activity["run_id"].endswith("-1")
     assert lease.horizon_s == 1800
-    assert [(c["leaf"], c["gpu"]) for c in lease.activity["claims"]] == [
-        (AGENT_RTC_QUEUE, 1),
-        (CEREBRAS_QUEUE, 0),
-    ]
+    assert [(c["leaf"], c["gpu"]) for c in lease.activity["claims"]] == [(AGENT_RTC_QUEUE, 1)]
 
 
 def test_renew_moves_the_horizon_forward_and_release_carries_outcome(signals):
@@ -230,10 +227,7 @@ class _Lease:
         self.activity = {
             "activity_id": "act-x",
             "state": "running",
-            "claims": [
-                {"leaf": AGENT_RTC_QUEUE, "gpu": 1},
-                {"leaf": CEREBRAS_QUEUE, "gpu": 0},
-            ],
+            "claims": [{"leaf": AGENT_RTC_QUEUE, "gpu": 1}],
         }
         self.activity_id = "act-x"
         self.released: list[str] = []
