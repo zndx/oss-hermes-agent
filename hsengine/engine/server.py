@@ -324,12 +324,20 @@ async def serve() -> None:
     from hsengine.engine import coordination
 
     watcher = coordination.start_watcher()
+    # Submit this engine's workload catalogue to Signals (at start, then every
+    # 30 min): the interactive agent-rtc workflow, catalogued source=engine so the
+    # federation sees it beside the scheduled classes Signals materialises.
+    from hsengine.engine import workload_catalog
+
+    syncer = workload_catalog.start_sync()
     try:
         await server.wait_for_termination()
     finally:
         hb.cancel()
         if watcher is not None and watcher._task is not None:
             watcher._task.cancel()
+        if syncer is not None and syncer._task is not None:
+            syncer._task.cancel()
 
 
 def main() -> None:

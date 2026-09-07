@@ -115,6 +115,21 @@ def test_server_query_peers_canonicalizes_loopback_targets():
 
 
 def test_server_query_unknown_kind_is_honest_empty():
+    # QUEUES is a kind this engine does not serve: an honest empty answer.
+    p1, p2, p3, p4 = _quiet()
+    with p1, p2, p3, p4:
+        resp = _run(
+            server.ZndxEngineServicer().ServerQuery(
+                zpb.ServerQueryRequest(kind=zpb.SERVER_QUERY_KIND_QUEUES), None
+            )
+        )
+    assert resp.project == "hermes"
+    assert not resp.remotes and not resp.surfaces and not resp.peers and not resp.schedules
+
+
+def test_server_query_schedules_is_the_workload_catalogue():
+    # (2026-09-07) SCHEDULES is no longer empty: it is this engine's workload
+    # catalogue — the interactive agent-rtc workflow, source=engine.
     p1, p2, p3, p4 = _quiet()
     with p1, p2, p3, p4:
         resp = _run(
@@ -122,8 +137,10 @@ def test_server_query_unknown_kind_is_honest_empty():
                 zpb.ServerQueryRequest(kind=zpb.SERVER_QUERY_KIND_SCHEDULES), None
             )
         )
-    assert resp.project == "hermes"
-    assert not resp.remotes and not resp.surfaces and not resp.peers and not resp.schedules
+    assert [(s.id, s.kind, s.source) for s in resp.schedules] == [
+        ("interactive.agent_rtc", "interactive_session", "engine")
+    ]
+    assert not resp.remotes and not resp.surfaces and not resp.peers
 
 
 def test_yield_unknown_workload_is_idempotent_ok():
