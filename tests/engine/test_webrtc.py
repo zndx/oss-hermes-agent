@@ -211,8 +211,9 @@ def test_looping_track_pts_keep_increasing(tmp_path, monkeypatch):
     reset_config()
 
     async def _run():
-        video, _audio = ws.looping_tracks(clip)
+        video, _audio, gate = ws.looping_tracks(clip)
         assert video is not None
+        assert gate.clip_live() is True
         pts = []
         try:
             for _ in range(15):
@@ -221,9 +222,10 @@ def test_looping_track_pts_keep_increasing(tmp_path, monkeypatch):
                     pts.append(int(frame.pts))
         finally:
             video.stop()
-        return pts
+        return pts, gate
 
-    pts = asyncio.run(_run())
+    pts, gate = asyncio.run(_run())
     assert len(pts) >= 12
     assert pts == sorted(pts)
     assert len(set(pts)) == len(pts)
+    assert gate.clip_live() is False

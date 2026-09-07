@@ -1,8 +1,9 @@
 """Outbound WebRTC audio mix: combined agent speech preempts clip soundtrack.
 
-One audio track on the PeerConnection. Clip audio plays until agent speech
-is queued; then speech replaces those samples (hard cut, same voice later
-via one TTS). Empty / all-zero speech falls through to the clip.
+One audio track on the PeerConnection. Clip audio plays through the first
+video pass; after that EOF the soundtrack is silenced. Agent speech always
+replaces clip samples while queued. Empty / all-zero speech falls through
+to whatever the clip is at that moment (first-pass audio, then silence).
 """
 from __future__ import annotations
 
@@ -18,6 +19,26 @@ log = logging.getLogger("hsengine.engine.webrtc.mix")
 CANON_RATE = 48000
 _MAX_SAMPLES = CANON_RATE * 30
 _SPEECH_FLOOR = 1e-4  # below this, treat as silence → clip plays
+
+
+class SoundtrackGate:
+    """Clip soundtrack is live only until the first video loop (or audio, if no video)."""
+
+    def __init__(self, *, has_video: bool) -> None:
+        self._has_video = bool(has_video)
+        self._loops = 0
+        self._lock = threading.Lock()
+
+    def on_track_eof(self, kind: str) -> None:
+        if kind == "video" or (kind == "audio" and not self._has_video):
+            with self._lock:
+                if self._loops == 0:
+                    self._loops = 1
+                    log.info("clip soundtrack ended after first %s pass", kind)
+
+    def clip_live(self) -> bool:
+        with self._lock:
+            return self._loops == 0
 
 
 def _as_float_mono(pcm: Any) -> Any:
@@ -149,7 +170,7 @@ class SpeechBoard:
         return chunk
 
 
-def apply_mix_frame(frame: Any, board: SpeechBoard) -> Any:
+def apply_mix_frame(frame: Any, board: SpeechBoard, gate: SoundtrackGate | None = None) -> Any:
     """Return a new audio frame with speech mixed over the clip, or the original."""
     try:
         import numpy as np
@@ -158,6 +179,8 @@ def apply_mix_frame(frame: Any, board: SpeechBoard) -> Any:
         return frame
     try:
         arr = frame.to_ndarray()
+        if gate is not None and not gate.clip_live():
+            arr = np.zeros_like(arr)
         n = int(arr.shape[-1] if arr.ndim else arr.size)
         rate = int(getattr(frame, "sample_rate", 0) or CANON_RATE)
         mixed = mix_pcm(arr, board.pull(n, rate))
@@ -213,7 +236,9 @@ def _silence_track(sample_rate: int = CANON_RATE, frame_samples: int = 960) -> A
     return SilenceTrack()
 
 
-def mix_audio_track(clip: Any | None, board: SpeechBoard) -> Any:
+def mix_audio_track(
+    clip: Any | None, board: SpeechBoard, gate: SoundtrackGate | None = None
+) -> Any:
     from aiortc import MediaStreamTrack
     from aiortc.mediastreams import MediaStreamError
 
@@ -230,7 +255,7 @@ def mix_audio_track(clip: Any | None, board: SpeechBoard) -> Any:
             if self.readyState != "live":
                 raise MediaStreamError
             frame = await self._inner.recv()
-            return apply_mix_frame(frame, board)
+            return apply_mix_frame(frame, board, gate)
 
         def stop(self) -> None:
             try:

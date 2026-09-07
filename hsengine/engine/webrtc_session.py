@@ -42,17 +42,24 @@ def video_path() -> Path | None:
     return None
 
 
-def looping_tracks(src: Path) -> tuple[object | None, object | None]:
-    """Video/audio tracks that replay *src* with monotonic PTS."""
+def looping_tracks(src: Path) -> tuple[object | None, object | None, object]:
+    """Video/audio tracks that replay *src* with monotonic PTS.
+
+    Returns (video, audio, soundtrack_gate). The gate flips off clip audio
+    after the first video pass (audio-only clips: after the first audio pass).
+    """
     from aiortc import MediaStreamTrack
     from aiortc.contrib.media import MediaPlayer
     from aiortc.mediastreams import MediaStreamError
 
+    from hsengine.engine.webrtc_mix import SoundtrackGate
+
     class LoopingFileTrack(MediaStreamTrack):
-        def __init__(self, path: Path, kind: str) -> None:
+        def __init__(self, path: Path, kind: str, gate: SoundtrackGate) -> None:
             super().__init__()
             self.kind = kind
             self._path = path
+            self._gate = gate
             self._player: object | None = None
             self._inner: object | None = None
             self._offset = 0
@@ -86,6 +93,7 @@ def looping_tracks(src: Path) -> tuple[object | None, object | None]:
                 try:
                     frame = await self._inner.recv()  # type: ignore[union-attr]
                 except MediaStreamError:
+                    self._gate.on_track_eof(self.kind)
                     self._close_inner()
                     if self._last_pts is not None:
                         self._offset = self._last_pts + 1
@@ -110,9 +118,10 @@ def looping_tracks(src: Path) -> tuple[object | None, object | None]:
             media.stop()
         except Exception:
             log.debug("webrtc stop probe", exc_info=True)
-    video = LoopingFileTrack(src, "video") if has_video else None
-    audio = LoopingFileTrack(src, "audio") if has_audio else None
-    return video, audio
+    gate = SoundtrackGate(has_video=has_video)
+    video = LoopingFileTrack(src, "video", gate) if has_video else None
+    audio = LoopingFileTrack(src, "audio", gate) if has_audio else None
+    return video, audio, gate
 
 
 class WebRtcHub:
@@ -161,7 +170,7 @@ class WebRtcHub:
         except Exception:
             await self._drop(session_id)
             raise
-        video, clip_audio = looping_tracks(src)
+        video, clip_audio, gate = looping_tracks(src)
         speech = SpeechBoard()
         self._speech[session_id] = speech
         tracks: list[object] = []
@@ -169,7 +178,7 @@ class WebRtcHub:
             painted = caption_track(video, board) if captions else video
             pc.addTrack(painted)  # type: ignore[arg-type]
             tracks.append(painted)
-        mixed = mix_audio_track(clip_audio, speech)
+        mixed = mix_audio_track(clip_audio, speech, gate)
         pc.addTrack(mixed)  # type: ignore[arg-type]
         tracks.append(mixed)
         if video is None and clip_audio is None:

@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import numpy as np
 
-from hsengine.engine.webrtc_mix import SpeechBoard, mix_pcm
+from hsengine.engine.webrtc_mix import SoundtrackGate, SpeechBoard, mix_pcm
 
 
 def test_clip_plays_when_no_speech():
@@ -57,3 +57,29 @@ def test_board_serializes_sources_and_preempts():
     assert int(np.max(np.abs(mixed))) > 0
     assert board.pull(4, 48000) is None
     assert board.speaking() is False
+
+
+def test_soundtrack_gate_dies_after_first_video_eof():
+    gate = SoundtrackGate(has_video=True)
+    assert gate.clip_live() is True
+    gate.on_track_eof("audio")
+    assert gate.clip_live() is True
+    gate.on_track_eof("video")
+    assert gate.clip_live() is False
+    gate.on_track_eof("video")
+    assert gate.clip_live() is False
+
+
+def test_soundtrack_gate_audio_only_dies_on_audio_eof():
+    gate = SoundtrackGate(has_video=False)
+    gate.on_track_eof("audio")
+    assert gate.clip_live() is False
+
+
+def test_clip_is_silence_after_first_loop_unless_speech():
+    clip = np.ones(8, dtype=np.int16) * 1000
+    silent = np.zeros_like(clip)
+    assert np.array_equal(mix_pcm(silent, None), silent)
+    speech = np.ones(8, dtype=np.float32) * 0.5
+    out = mix_pcm(silent, speech)
+    assert int(out[0]) > 10000
