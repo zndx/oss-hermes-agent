@@ -59,8 +59,8 @@ text_bos_token = 1
 [modules.tts_py.py]
 log_folder = "./logs"
 voice_folder = "hf-snapshot://kyutai/tts-voices/**/*.safetensors"
-# Expresso ex04 calm: studio 48 kHz actress (CC BY-NC, local testing).
-default_voice = "expresso/ex04-ex02_calm_002_channel1_480s.wav"
+# Alba MacKenna casual: CC BY 4.0 (permissive). Not Expresso CC-NC.
+default_voice = "alba-mackenna/casual.wav"
 cfg_coef = 2.0
 cfg_is_no_text = true
 padding_between = 1
