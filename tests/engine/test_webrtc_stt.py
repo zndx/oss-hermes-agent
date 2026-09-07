@@ -75,3 +75,19 @@ def test_frame_to_mono16k_downsamples_stereo():
     assert pcm.ndim == 1
     assert 1500 < pcm.size < 1800
     assert float(pcm.max()) <= 1.0
+
+
+def test_frame_to_mono_uses_samples_not_interleaved_length():
+    np = pytest.importorskip("numpy")
+    from hsengine.engine.webrtc_stt import frame_to_mono
+
+    packed = np.ones((1, 1920), dtype=np.int16) * 16384
+    frame = SimpleNamespace(
+        sample_rate=48000,
+        samples=960,
+        layout=SimpleNamespace(nb_channels=2),
+        to_ndarray=lambda: packed,
+    )
+    pcm = frame_to_mono(frame, rate=24000)
+    assert pcm is not None
+    assert pcm.size == 480

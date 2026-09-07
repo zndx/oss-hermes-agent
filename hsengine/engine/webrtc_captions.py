@@ -93,10 +93,12 @@ def overlay_frame(frame: Any, text: str) -> Any:
         paint_caption(image, text)
         out = av.VideoFrame.from_ndarray(np.asarray(image), format="rgb24")
         out.pts = frame.pts
-        out.time_base = frame.time_base
+        tb = getattr(frame, "time_base", None)
+        if tb is not None:
+            out.time_base = tb
         return out
     except Exception:
-        log.debug("caption overlay failed", exc_info=True)
+        log.warning("caption overlay failed", exc_info=True)
         return frame
 
 

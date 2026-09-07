@@ -37,7 +37,17 @@ def frame_to_mono(frame: Any, rate: int = _RATE) -> Any:
         peak = float(np.max(np.abs(pcm))) if pcm.size else 0.0
         if peak > 1.5:
             pcm = pcm / 32768.0
-    if pcm.ndim == 2:
+    n = 0
+    try:
+        from hsengine.engine.webrtc_mix import audio_frame_samples
+
+        n = audio_frame_samples(frame, arr)
+    except Exception:
+        n = 0
+    if n > 0 and pcm.size >= n and pcm.size % n == 0:
+        ch = pcm.size // n
+        pcm = pcm.reshape(n, ch).mean(axis=1) if ch > 1 else pcm.reshape(n)
+    elif pcm.ndim == 2:
         pcm = pcm.mean(axis=0 if pcm.shape[0] <= 8 else 1)
     src_rate = int(getattr(frame, "sample_rate", 0) or rate)
     if src_rate != rate and pcm.size:

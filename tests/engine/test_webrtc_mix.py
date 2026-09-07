@@ -3,7 +3,33 @@ from __future__ import annotations
 
 import numpy as np
 
-from hsengine.engine.webrtc_mix import SoundtrackGate, SpeechBoard, mix_pcm
+from hsengine.engine.webrtc_mix import (
+    SoundtrackGate,
+    SpeechBoard,
+    audio_frame_samples,
+    mix_pcm,
+)
+
+
+def test_audio_frame_samples_uses_time_not_interleaved_length():
+    class _Layout:
+        nb_channels = 2
+
+    class _Frame:
+        samples = 960
+        layout = _Layout()
+
+    packed = np.zeros((1, 1920), dtype=np.int16)
+    assert audio_frame_samples(_Frame(), packed) == 960
+    planar = np.zeros((2, 960), dtype=np.float32)
+    assert audio_frame_samples(_Frame(), planar) == 960
+
+
+def test_mix_pcm_does_not_double_time_on_packed_stereo():
+    clip = np.zeros((1, 8), dtype=np.int16)
+    speech = np.linspace(0.1, 0.8, 4, dtype=np.float32)
+    out = mix_pcm(clip, speech, n_samples=4)
+    assert out.shape == (1, 8)
 
 
 def test_clip_plays_when_no_speech():

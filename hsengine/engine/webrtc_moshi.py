@@ -65,6 +65,7 @@ class MoshiCaptioner:
             del self.words[: -self.max_words]
             line = " ".join(self.words)
             self.board.set(line)
+            log.info("stt word %r line=%r", word, line)
             return line
         if kind == "Step":
             return None
@@ -123,6 +124,14 @@ async def follow_audio(track: Any, board: Any) -> None:
                     log.info("moshi stt connected %s", url)
 
                     async def sender() -> None:
+                        silence = np.zeros(_MOSHI_RATE, dtype=np.float32)
+                        await ws.send(
+                            msgpack.packb(
+                                {"type": "Audio", "pcm": [float(x) for x in silence]},
+                                use_bin_type=True,
+                                use_single_float=True,
+                            )
+                        )
                         while True:
                             piece = await chunks.get()
                             msg = msgpack.packb(

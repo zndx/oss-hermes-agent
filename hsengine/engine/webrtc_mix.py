@@ -108,7 +108,38 @@ def speech_like_clip(clip: Any, speech_mono: Any) -> Any:
     return np.stack([mono] * clip_arr.shape[1], axis=1)
 
 
-def mix_pcm(clip: Any, speech: Any | None) -> Any:
+def audio_frame_samples(frame: Any, arr: Any | None = None) -> int:
+    """Time-sample count (not interleaved length). Packed stereo is N, not 2N."""
+    n = int(getattr(frame, "samples", 0) or 0)
+    if n > 0:
+        return n
+    layout = getattr(frame, "layout", None)
+    ch = int(
+        getattr(layout, "nb_channels", None) or getattr(layout, "channels", None) or 0
+    )
+    import numpy as np
+
+    if arr is None:
+        try:
+            arr = frame.to_ndarray()
+        except Exception:
+            return 0
+    size = int(np.asarray(arr).size)
+    if ch > 1 and size >= ch and size % ch == 0:
+        return size // ch
+    if arr is not None:
+        a = np.asarray(arr)
+        if a.ndim == 1:
+            return int(a.size)
+        if a.shape[0] <= 8:
+            return int(a.shape[1])
+        if a.shape[1] <= 8:
+            return int(a.shape[0])
+        return int(a.shape[-1])
+    return 0
+
+
+def mix_pcm(clip: Any, speech: Any | None, n_samples: int | None = None) -> Any:
     """Replace clip samples with speech when speech is present and audible."""
     import numpy as np
 
@@ -118,6 +149,12 @@ def mix_pcm(clip: Any, speech: Any | None) -> Any:
     if mono.size == 0 or float(np.max(np.abs(mono))) < _SPEECH_FLOOR:
         return clip
     clip_arr = np.asarray(clip)
+    n = int(n_samples or 0)
+    if n > 0 and clip_arr.size >= n and clip_arr.size % n == 0:
+        ch = clip_arr.size // n
+        fitted = _fit(mono, n)
+        stacked = np.stack([fitted] * ch, axis=-1)
+        return _to_clip_dtype(stacked.reshape(clip_arr.shape), clip_arr)
     return _to_clip_dtype(speech_like_clip(clip_arr, mono), clip_arr)
 
 
@@ -182,9 +219,9 @@ def apply_mix_frame(frame: Any, board: SpeechBoard, gate: SoundtrackGate | None 
         silenced = gate is not None and not gate.clip_live()
         if silenced:
             arr = np.zeros_like(arr)
-        n = int(arr.shape[-1] if arr.ndim else arr.size)
+        n = audio_frame_samples(frame, arr)
         rate = int(getattr(frame, "sample_rate", 0) or CANON_RATE)
-        mixed = mix_pcm(arr, board.pull(n, rate))
+        mixed = mix_pcm(arr, board.pull(n, rate), n_samples=n)
         # After the first video loop, arr is a zero copy — it equals mixed when
         # there is no speech, but the original frame still has clip samples.
         if not silenced and (mixed is arr or np.array_equal(mixed, arr)):
