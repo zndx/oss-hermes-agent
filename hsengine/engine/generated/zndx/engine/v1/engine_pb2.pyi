@@ -369,7 +369,7 @@ class PeerHint(_message.Message):
     def __init__(self, project: _Optional[str] = ..., target: _Optional[str] = ...) -> None: ...
 
 class ScheduleHint(_message.Message):
-    __slots__ = ("id", "cron", "airflow_dag_id", "source", "enabled", "kind", "claims", "precludes", "postures", "horizon_s", "after", "timezone", "description", "runner")
+    __slots__ = ("id", "cron", "airflow_dag_id", "source", "enabled", "kind", "claims", "precludes", "postures", "horizon_s", "after", "timezone", "description", "runner", "after_mode")
     class PosturesEntry(_message.Message):
         __slots__ = ("key", "value")
         KEY_FIELD_NUMBER: _ClassVar[int]
@@ -391,6 +391,7 @@ class ScheduleHint(_message.Message):
     TIMEZONE_FIELD_NUMBER: _ClassVar[int]
     DESCRIPTION_FIELD_NUMBER: _ClassVar[int]
     RUNNER_FIELD_NUMBER: _ClassVar[int]
+    AFTER_MODE_FIELD_NUMBER: _ClassVar[int]
     id: str
     cron: str
     airflow_dag_id: str
@@ -405,7 +406,8 @@ class ScheduleHint(_message.Message):
     timezone: str
     description: str
     runner: str
-    def __init__(self, id: _Optional[str] = ..., cron: _Optional[str] = ..., airflow_dag_id: _Optional[str] = ..., source: _Optional[str] = ..., enabled: _Optional[bool] = ..., kind: _Optional[str] = ..., claims: _Optional[_Iterable[_Union[ActivityClaim, _Mapping]]] = ..., precludes: _Optional[_Iterable[str]] = ..., postures: _Optional[_Mapping[str, str]] = ..., horizon_s: _Optional[int] = ..., after: _Optional[_Iterable[str]] = ..., timezone: _Optional[str] = ..., description: _Optional[str] = ..., runner: _Optional[str] = ...) -> None: ...
+    after_mode: str
+    def __init__(self, id: _Optional[str] = ..., cron: _Optional[str] = ..., airflow_dag_id: _Optional[str] = ..., source: _Optional[str] = ..., enabled: _Optional[bool] = ..., kind: _Optional[str] = ..., claims: _Optional[_Iterable[_Union[ActivityClaim, _Mapping]]] = ..., precludes: _Optional[_Iterable[str]] = ..., postures: _Optional[_Mapping[str, str]] = ..., horizon_s: _Optional[int] = ..., after: _Optional[_Iterable[str]] = ..., timezone: _Optional[str] = ..., description: _Optional[str] = ..., runner: _Optional[str] = ..., after_mode: _Optional[str] = ...) -> None: ...
 
 class WikiNote(_message.Message):
     __slots__ = ("id", "title", "body", "links", "origin_project")
