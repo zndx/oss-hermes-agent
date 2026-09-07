@@ -58,8 +58,10 @@ async def synthesize(text: str) -> Any:
     cleaned = " ".join((text or "").split())
     if not cleaned:
         return np.zeros(0, dtype=np.float32)
-    params = {"voice": tts_voice(), "format": "PcmMessagePack"}
+    voice = tts_voice()
+    params = {"voice": voice, "format": "PcmMessagePack"}
     uri = f"{tts_url()}?{urlencode(params)}"
+    log.info("tts voice=%s chars=%s", voice, len(cleaned))
     headers = {"kyutai-api-key": tts_key()}
     chunks: list[Any] = []
     async with websockets.connect(

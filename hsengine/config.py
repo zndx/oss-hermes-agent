@@ -14,10 +14,23 @@ from pyhocon import ConfigFactory, ConfigTree
 _DEFAULT_CONFIG_DIR = Path(__file__).resolve().parents[1] / "config"
 
 
-@functools.lru_cache(maxsize=4)
 def load_config(config_dir: Path | None = None) -> ConfigTree:
+    """Parse ``base.conf``. Re-reads when the file's mtime changes.
+
+    The engine is a long-lived devenv process; voice (and other) edits must
+    take effect without a restart.
+    """
     base = (config_dir or _DEFAULT_CONFIG_DIR) / "base.conf"
-    return ConfigFactory.parse_file(str(base), resolve=True)
+    try:
+        mtime = base.stat().st_mtime
+    except OSError:
+        mtime = 0.0
+    return _load_config_at(str(base), mtime)
+
+
+@functools.lru_cache(maxsize=8)
+def _load_config_at(base: str, mtime: float) -> ConfigTree:
+    return ConfigFactory.parse_file(base, resolve=True)
 
 
 def get_config() -> ConfigTree:
@@ -40,4 +53,4 @@ def get_list(path: str) -> list[Any]:
 
 
 def reset_config() -> None:
-    load_config.cache_clear()
+    _load_config_at.cache_clear()

@@ -9,7 +9,8 @@ from hsengine.engine.webrtc_tts import speak_into, tts_url, tts_voice
 
 def test_tts_url_is_the_moshi_streaming_path():
     assert tts_url().endswith("/api/tts_streaming")
-    assert tts_voice()
+    voice = tts_voice()
+    assert "/" in voice and voice.endswith(".wav")
 
 
 def test_speak_into_preempts_clip_on_the_board(monkeypatch):
