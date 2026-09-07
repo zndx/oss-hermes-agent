@@ -67,6 +67,9 @@ class HermesBwrapTests(unittest.TestCase):
         self.assertIn("/home/hermes", proc.stderr)
         self.assertIn("--setenv HOME", proc.stderr)
         self.assertIn(str(ROOT), proc.stderr)
+        # The jail must not punch a kubeconfig through: Signals applies YK.
+        self.assertNotIn("rke2.yaml", proc.stderr)
+        self.assertNotIn(".config/kube", proc.stderr)
 
     def test_plugin_symlink_target_is_bound(self) -> None:
         import tempfile

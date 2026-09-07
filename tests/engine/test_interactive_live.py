@@ -1,20 +1,17 @@
-"""Live interactive posture: Cerebras thinking + YK token-metered stamp.
+"""Live interactive posture: Cerebras complete + Connect via signals-protocol.
 
-Skipped unless kubectl, CEREBRAS_API_KEY, and the moshi supervisor are up.
-Does not print secrets.
+Skipped unless CEREBRAS_API_KEY and (for enter) the Signals scheduler plus
+moshi supervisor are up. Does not print secrets. Does not talk to Kubernetes.
 """
 from __future__ import annotations
 
 import os
-import shutil
 import socket
-import subprocess
-from pathlib import Path
 
 import pytest
 
-from hsengine.engine import interactive
-from hsengine.engine.yk_sentinel import CEREBRAS_QUEUE, CEREBRAS_WORKLOAD_ID, QUEUE, WORKLOAD_ID
+from hsengine.engine import coordination, interactive
+from hsengine.engine.yk_sentinel import CEREBRAS_QUEUE, QUEUE, moshi_serving
 
 # conftest strips *_API_KEY before each test. Snapshot at import.
 _KEY_SNAP = os.environ.get("CEREBRAS_API_KEY") or ""
@@ -31,107 +28,71 @@ def _ensure_key() -> bool:
         return False
 
 
-def _supervisor_up() -> bool:
+def _port_up(host: str, port: int) -> bool:
     try:
-        s = socket.create_connection(("127.0.0.1", 5081), 1)
+        s = socket.create_connection((host, port), 1)
         s.close()
         return True
     except OSError:
         return False
 
 
-def _kubectl(*args: str) -> str:
-    env = os.environ.copy()
-    env["KUBECONFIG"] = str(Path.home() / ".config/kube/rke2.yaml")
-    r = subprocess.run(
-        ["kubectl", *args],
-        capture_output=True,
-        text=True,
-        timeout=30,
-        env=env,
-        check=False,
+def _supervisor_up() -> bool:
+    return _port_up("127.0.0.1", 5081)
+
+
+def _signals_up() -> bool:
+    raw = coordination.target()
+    host, _, port = raw.rpartition(":")
+    if not host or not port.isdigit():
+        return False
+    return _port_up(host, int(port))
+
+
+@pytest.mark.integration
+def test_cerebras_qwen38_complete_without_kubernetes():
+    if not _ensure_key():
+        pytest.skip("CEREBRAS_API_KEY not configured")
+
+    result = interactive.complete_cerebras(
+        prompt="Reply with the single word: pong",
+        max_tokens=32,
+        temperature=0,
+        reasoning_effort="none",
     )
-    return (r.stdout or "") + (r.stderr or "")
+    assert result.peer == "cerebras"
+    assert result.model == "qwen-3.8-27b"
+    assert "pong" in result.text.lower()
 
 
 @pytest.mark.integration
-def test_cerebras_thinking_token_metered_and_qwen38_complete():
-    if shutil.which("kubectl") is None:
-        pytest.skip("kubectl not on PATH")
+def test_interactive_enter_declares_then_starts_moshi():
     if not _ensure_key():
         pytest.skip("CEREBRAS_API_KEY not configured")
-
-    from hsengine.engine.yk_sentinel import apply_cerebras_thinking, delete_sentinel, wait_admitted
-
-    apply_cerebras_thinking()
-    try:
-        wait_admitted(CEREBRAS_WORKLOAD_ID, timeout_s=60)
-        cerebras = _kubectl(
-            "-n",
-            "federation-signals",
-            "get",
-            "pod",
-            CEREBRAS_WORKLOAD_ID,
-            "-o",
-            "jsonpath={.status.phase},{.metadata.annotations.yunikorn\\.apache\\.org/queue}",
-        )
-        assert "Running" in cerebras
-        assert CEREBRAS_QUEUE in cerebras
-        result = interactive.complete_cerebras(
-            prompt="Reply with the single word: pong",
-            max_tokens=32,
-            temperature=0,
-            reasoning_effort="none",
-        )
-        assert result.peer == "cerebras"
-        assert result.model == "qwen-3.8-27b"
-        assert "pong" in result.text.lower()
-    finally:
-        delete_sentinel(CEREBRAS_WORKLOAD_ID)
-
-
-@pytest.mark.integration
-def test_interactive_profile_stamps_cerebras_thinking_and_completes():
-    if shutil.which("kubectl") is None:
-        pytest.skip("kubectl not on PATH")
-    if not _ensure_key():
-        pytest.skip("CEREBRAS_API_KEY not configured")
+    if not _signals_up():
+        pytest.skip("Signals scheduler not listening")
     if not _supervisor_up():
         pytest.skip("moshi supervisor :5081 not up")
 
     with interactive._mu:
         interactive._refcount = 0
         interactive._active = False
+        interactive._lease = None
 
     interactive.enter()
     try:
         assert interactive.is_active()
-        cerebras = _kubectl(
-            "-n",
-            "federation-signals",
-            "get",
-            "pod",
-            CEREBRAS_WORKLOAD_ID,
-            "-o",
-            "jsonpath={.status.phase},{.metadata.annotations.yunikorn\\.apache\\.org/queue}",
-        )
-        assert "Running" in cerebras
-        assert CEREBRAS_QUEUE in cerebras
-        rtc = _kubectl(
-            "-n",
-            "federation-signals",
-            "get",
-            "pod",
-            WORKLOAD_ID,
-            "-o",
-            "jsonpath={.status.phase},{.metadata.annotations.yunikorn\\.apache\\.org/queue}",
-        )
-        assert "Running" in rtc
-        assert QUEUE in rtc
+        activity = interactive.current_activity()
+        assert activity is not None
+        claims = {(c["leaf"], int(c["gpu"])) for c in activity["claims"]}
+        assert (QUEUE, 1) in claims
+        assert (CEREBRAS_QUEUE, 0) in claims
+        assert moshi_serving() or _port_up("127.0.0.1", 5080)
         result = interactive.complete_cerebras(
             prompt="Reply with the single word: pong",
             max_tokens=16,
             temperature=0,
+            reasoning_effort="none",
         )
         assert result.peer == "cerebras"
         assert "qwen" in result.model.lower() or result.model == "qwen-3.8-27b"
@@ -141,12 +102,3 @@ def test_interactive_profile_stamps_cerebras_thinking_and_completes():
         interactive.leave()
 
     assert interactive.is_active() is False
-    gone = _kubectl(
-        "-n",
-        "federation-signals",
-        "get",
-        "pod",
-        CEREBRAS_WORKLOAD_ID,
-        "--ignore-not-found=true",
-    )
-    assert CEREBRAS_WORKLOAD_ID not in gone or "Terminating" in gone or gone.strip() == ""

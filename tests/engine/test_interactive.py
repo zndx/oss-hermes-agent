@@ -6,7 +6,6 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from hsengine.engine import interactive
-from hsengine.engine.yk_sentinel import CEREBRAS_QUEUE, cerebras_thinking_yaml
 
 
 @pytest.fixture(autouse=True)
@@ -14,10 +13,12 @@ def _reset_interactive():
     with interactive._mu:
         interactive._refcount = 0
         interactive._active = False
+        interactive._lease = None
     yield
     with interactive._mu:
         interactive._refcount = 0
         interactive._active = False
+        interactive._lease = None
 
 
 def test_enter_requires_cerebras_key(monkeypatch):
@@ -51,10 +52,15 @@ def test_complete_cerebras_posts_qwen38(monkeypatch):
     assert sent.kwargs["json"]["model"] == "qwen-3.8-27b"
 
 
-def test_cerebras_thinking_yaml_is_zero_gpu_token_metered():
-    raw = cerebras_thinking_yaml()
-    assert "yunikorn.apache.org/queue: root.external.token-metered" in raw
-    assert CEREBRAS_QUEUE == "root.external.token-metered"
-    assert 'federation.zndx.org/gpu: "1"' not in raw
-    assert "nvidia.com/gpu" not in raw
-    assert "hermes-cerebras-thinking" in raw
+def test_require_declared_workload_denies_missing_claims():
+    with pytest.raises(RuntimeError, match="did not echo the agent-rtc workload claims"):
+        interactive._require_declared_workload({"state": "running", "claims": []})
+
+
+def test_require_declared_workload_denies_activity_not_in_force():
+    claims = [
+        {"leaf": "root.internal.inference.agent-rtc", "gpu": 1},
+        {"leaf": "root.external.token-metered", "gpu": 0},
+    ]
+    with pytest.raises(RuntimeError, match="not in force"):
+        interactive._require_declared_workload({"state": "failed", "claims": claims})

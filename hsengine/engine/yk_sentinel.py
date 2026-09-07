@@ -1,22 +1,22 @@
-"""YuniKorn Application claim for Hermes agent-rtc (1 GPU guaranteed).
+"""Host occupancy for the agent-rtc CUDA worker.
 
-Queue path is the resource class. Project is identity (federation.project=hermes).
-Host occupancy is federation.zndx.org/gpu only — never nvidia.com/gpu on this
-CPU-only pause pod (that would bind the card into an empty sentinel).
+YuniKorn configuration is Signals' job: this engine declares the interactive
+Activity (claims = queue config) over signals-protocol, and Signals applies
+it. This module never talks to Kubernetes. It only:
 
-Admit (pod Running) is required before moshi-server starts CUDA. If YK does
-not admit, agent-rtc is unavailable — no CPU/whisper path.
+- names the leaves the Activity claims (imported by coordination)
+- takes an advisory 1-GPU host lease so moshi-server does not collide with
+  another local CUDA process
+- knows whether moshi-server is listening
 """
 from __future__ import annotations
 
 import json
 import logging
 import os
-import shutil
 import socket
 import subprocess
 import sys
-import time
 from pathlib import Path
 
 log = logging.getLogger("hsengine.engine.yk_sentinel")
@@ -25,181 +25,10 @@ WORKLOAD_ID = "hermes-agent-rtc"
 QUEUE = "root.internal.inference.agent-rtc"
 RESOURCE_CLASS = "internal.inference.agent-rtc"
 GPU_TOKENS = 1
-PRIORITY_CLASS = "zndx-gpu-high"
 CEREBRAS_WORKLOAD_ID = "hermes-cerebras-thinking"
 CEREBRAS_QUEUE = "root.external.token-metered"
 CEREBRAS_CLASS = "external.token-metered"
-NAMESPACE = os.environ.get("SIGNALS_SENTINEL_NAMESPACE", "federation-signals")
-C2_URL = os.environ.get("SIGNALS_C2_URL", "http://127.0.0.1:50561")
-GPU_KEY = "federation.zndx.org/gpu"
-ADMIT_TIMEOUT_S = float(os.environ.get("HERMES_YK_GPU_ADMIT_TIMEOUT_S", "600"))
 LEASE_DIR = Path(os.environ.get("ZNDX_GPU_LEASE_DIR", "/tmp/zndx-gpu-leases"))
-
-
-def _kubeconfig_env() -> dict[str, str]:
-    env = os.environ.copy()
-    env["KUBECONFIG"] = str(Path.home() / ".config/kube/rke2.yaml")
-    return env
-
-
-def application_yaml(
-    workload_id: str = WORKLOAD_ID,
-    *,
-    queue: str = QUEUE,
-    resource_class: str = RESOURCE_CLASS,
-    gpu_tokens: int = GPU_TOKENS,
-) -> str:
-    gpu_req = f'\n          {GPU_KEY}: "{gpu_tokens}"' if gpu_tokens else ""
-    gpu_lim = f'\n          {GPU_KEY}: "{gpu_tokens}"' if gpu_tokens else ""
-    return f"""apiVersion: v1
-kind: Pod
-metadata:
-  name: {workload_id}
-  namespace: {NAMESPACE}
-  labels:
-    app.kubernetes.io/component: minifi-sentinel
-    federation.project: hermes
-    federation.workload_id: {workload_id}
-    federation.resource_class: {resource_class}
-    federation.kind: agent-rtc
-    federation.phase: listen
-    applicationId: {workload_id}
-    queue: {queue}
-    zarf.dev/agent: ignore
-  annotations:
-    zarf.dev/agent: ignore
-    yunikorn.apache.org/app-id: {workload_id}
-    yunikorn.apache.org/queue: {queue}
-    federation.zndx.org/envelope: "apps=1,gpu={gpu_tokens},mem=16Mi,cpu=10m"
-    federation.zndx.org/phase: "listen"
-spec:
-  restartPolicy: Never
-  priorityClassName: {PRIORITY_CLASS}
-  hostNetwork: true
-  containers:
-    - name: sentinel
-      image: rancher/mirrored-pause:3.6
-      imagePullPolicy: IfNotPresent
-      env:
-        - name: FEDERATION_PROJECT
-          value: hermes
-        - name: FEDERATION_RESOURCE_CLASS
-          value: {resource_class}
-      lifecycle:
-        preStop:
-          exec:
-            command:
-              - sh
-              - -c
-              - |
-                wget -q -O- --post-data='{{"workload_id":"{workload_id}","project":"hermes","phase":"preempted","sentinel_id":"{workload_id}"}}' \\
-                  --header='Content-Type: application/json' \\
-                  "{C2_URL}/c2-protocol/last-gasp" || true
-      resources:
-        requests:
-          cpu: 10m
-          memory: 16Mi{gpu_req}
-        limits:
-          cpu: 10m
-          memory: 16Mi{gpu_lim}
-"""
-
-
-def cerebras_thinking_yaml() -> str:
-    return application_yaml(
-        CEREBRAS_WORKLOAD_ID,
-        queue=CEREBRAS_QUEUE,
-        resource_class=CEREBRAS_CLASS,
-        gpu_tokens=0,
-    ).replace("federation.kind: agent-rtc", "federation.kind: cerebras-thinking").replace(
-        'federation.zndx.org/phase: "listen"',
-        'federation.zndx.org/phase: "think"',
-    )
-
-
-def _kubectl(args: list[str], *, timeout: int = 30) -> subprocess.CompletedProcess:
-    kubectl = shutil.which("kubectl")
-    if kubectl is None:
-        raise RuntimeError("kubectl not on PATH — agent-rtc sentinel cannot admit")
-    return subprocess.run(
-        [kubectl, *args],
-        capture_output=True,
-        text=True,
-        timeout=timeout,
-        env=_kubeconfig_env(),
-        check=False,
-    )
-
-
-def apply_manifest(raw: str) -> None:
-    kubectl = shutil.which("kubectl")
-    if kubectl is None:
-        raise RuntimeError("kubectl not on PATH — agent-rtc sentinel cannot admit")
-    proc = subprocess.run(
-        [kubectl, "-n", NAMESPACE, "apply", "-f", "-"],
-        input=raw,
-        capture_output=True,
-        text=True,
-        timeout=30,
-        env=_kubeconfig_env(),
-        check=False,
-    )
-    if proc.returncode != 0:
-        raise RuntimeError(
-            f"YK sentinel apply failed: {(proc.stderr or proc.stdout).strip()}"
-        )
-
-
-def apply_sentinel(workload_id: str = WORKLOAD_ID) -> None:
-    apply_manifest(application_yaml(workload_id))
-    log.info("applied sentinel %s on %s", workload_id, QUEUE)
-
-
-def apply_cerebras_thinking() -> None:
-    apply_manifest(cerebras_thinking_yaml())
-    log.info("applied sentinel %s on %s", CEREBRAS_WORKLOAD_ID, CEREBRAS_QUEUE)
-
-
-def wait_admitted(workload_id: str = WORKLOAD_ID, timeout_s: float = ADMIT_TIMEOUT_S) -> None:
-    deadline = time.monotonic() + timeout_s
-    last = ""
-    while time.monotonic() < deadline:
-        proc = _kubectl(
-            [
-                "-n",
-                NAMESPACE,
-                "get",
-                "pod",
-                workload_id,
-                "-o",
-                "jsonpath={.status.phase}",
-            ]
-        )
-        last = (proc.stdout or "").strip()
-        if last == "Running":
-            log.info("YK admitted %s", workload_id)
-            return
-        if last in {"Failed", "Succeeded"}:
-            raise RuntimeError(f"YK sentinel {workload_id} phase={last}")
-        time.sleep(2)
-    raise RuntimeError(
-        f"YK did not admit {workload_id} on {QUEUE} within {timeout_s:.0f}s "
-        f"(last phase={last or 'unknown'}). agent-rtc is unavailable."
-    )
-
-
-def delete_sentinel(workload_id: str = WORKLOAD_ID) -> None:
-    _kubectl(
-        [
-            "-n",
-            NAMESPACE,
-            "delete",
-            "pod",
-            workload_id,
-            "--ignore-not-found=true",
-            "--wait=false",
-        ]
-    )
 
 
 def _gpu_indices() -> list[int]:
@@ -298,11 +127,6 @@ def moshi_serving(host: str = "127.0.0.1", port: int = 5080, timeout: float = 0.
         return False
 
 
-def admit() -> None:
-    apply_sentinel()
-    wait_admitted()
-
-
 def pid_file() -> Path:
     return Path(
         os.environ.get("HERMES_MOSHI_PID_FILE")
@@ -325,21 +149,16 @@ def kill_moshi() -> bool:
     return True
 
 
-def release() -> None:
-    release_gpu_lease()
-    delete_sentinel()
-
-
 def main(argv: list[str] | None = None) -> int:
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
     args = list(sys.argv[1:] if argv is None else argv)
-    if not args or args[0] not in {"admit", "release"}:
-        print("usage: python -m hsengine.engine.yk_sentinel admit|release", file=sys.stderr)
+    if not args or args[0] not in {"lease", "release"}:
+        print("usage: python -m hsengine.engine.yk_sentinel lease|release", file=sys.stderr)
         return 2
-    if args[0] == "admit":
-        admit()
+    if args[0] == "lease":
+        print(lease_one_gpu(os.getpid()))
         return 0
-    release()
+    release_gpu_lease()
     return 0
 
 

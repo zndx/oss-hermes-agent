@@ -156,6 +156,10 @@ def test_declare_interactive_request_shape(signals):
     assert lease.activity["state"] == "running"
     assert lease.activity["run_id"].endswith("-1")
     assert lease.horizon_s == 1800
+    assert [(c["leaf"], c["gpu"]) for c in lease.activity["claims"]] == [
+        (AGENT_RTC_QUEUE, 1),
+        (CEREBRAS_QUEUE, 0),
+    ]
 
 
 def test_renew_moves_the_horizon_forward_and_release_carries_outcome(signals):
@@ -223,7 +227,14 @@ def test_declare_publishes_activity_event_on_bus(signals):
 class _Lease:
     def __init__(self, calls: list[str]) -> None:
         self.calls = calls
-        self.activity = {"activity_id": "act-x", "state": "running"}
+        self.activity = {
+            "activity_id": "act-x",
+            "state": "running",
+            "claims": [
+                {"leaf": AGENT_RTC_QUEUE, "gpu": 1},
+                {"leaf": CEREBRAS_QUEUE, "gpu": 0},
+            ],
+        }
         self.activity_id = "act-x"
         self.released: list[str] = []
 
@@ -244,8 +255,6 @@ def _wire(monkeypatch, calls: list[str], *, moshi_fails: bool = False) -> _Lease
         return lease
 
     monkeypatch.setattr(interactive.coordination, "declare_interactive", _declare)
-    monkeypatch.setattr(interactive, "apply_cerebras_thinking", lambda: calls.append("sentinel"))
-    monkeypatch.setattr(interactive, "wait_admitted", lambda *a, **k: calls.append("admitted"))
 
     def _moshi_on():
         calls.append("moshi_on")
@@ -254,7 +263,6 @@ def _wire(monkeypatch, calls: list[str], *, moshi_fails: bool = False) -> _Lease
 
     monkeypatch.setattr(interactive, "_moshi_on", _moshi_on)
     monkeypatch.setattr(interactive, "_moshi_off", lambda: calls.append("moshi_off"))
-    monkeypatch.setattr(interactive, "delete_sentinel", lambda *a, **k: calls.append("delete_sentinel"))
     return lease
 
 
@@ -263,7 +271,8 @@ def test_enter_declares_before_moshi_and_leave_releases(monkeypatch):
     _wire(monkeypatch, calls)
     interactive.enter(owner="webrtc:s1")
     assert interactive.is_active()
-    assert calls.index("declare:webrtc:s1") < calls.index("sentinel") < calls.index("moshi_on")
+    assert calls.index("declare:webrtc:s1") < calls.index("moshi_on")
+    assert "sentinel" not in calls
     assert calls[-1] == "renew_loop"
     assert interactive.current_activity()["activity_id"] == "act-x"
     interactive.enter(owner="webrtc:s2")  # second session: refcount only
@@ -272,7 +281,7 @@ def test_enter_declares_before_moshi_and_leave_releases(monkeypatch):
     assert interactive.is_active()  # one session still up
     interactive.leave()
     assert not interactive.is_active()
-    assert calls[-3:] == ["moshi_off", "delete_sentinel", "release:hangup"]
+    assert calls[-2:] == ["moshi_off", "release:hangup"]
     assert interactive.current_activity() is None
 
 
@@ -294,13 +303,39 @@ def test_enter_denied_when_declare_fails_touches_nothing(monkeypatch):
         raise RuntimeError(f"{coordination.GURU_DECLAREFAIL} DeclareActivity at Signals engine 127.0.0.1:50551 failed")
 
     monkeypatch.setattr(interactive.coordination, "declare_interactive", _declare)
-    monkeypatch.setattr(interactive, "apply_cerebras_thinking", lambda: calls.append("sentinel"))
     monkeypatch.setattr(interactive, "_moshi_on", lambda: calls.append("moshi_on"))
     monkeypatch.setattr(interactive, "_moshi_off", lambda: calls.append("moshi_off"))
-    monkeypatch.setattr(interactive, "delete_sentinel", lambda *a, **k: calls.append("delete_sentinel"))
     with pytest.raises(RuntimeError, match="DECLAREFAIL"):
         interactive.enter()
-    assert "sentinel" not in calls and "moshi_on" not in calls
+    assert "moshi_on" not in calls
+    assert not interactive.is_active()
+
+
+def test_enter_denied_when_signals_omits_workload_claims(monkeypatch):
+    calls: list[str] = []
+    monkeypatch.setenv("CEREBRAS_API_KEY", "test-key")
+
+    class Blank:
+        activity = {"activity_id": "act-x", "state": "running", "claims": []}
+        activity_id = "act-x"
+        released: list[str] = []
+
+        def start_renewing(self) -> None:
+            calls.append("renew_loop")
+
+        def release(self, outcome: str) -> None:
+            calls.append(f"release:{outcome}")
+            self.released.append(outcome)
+
+    blank = Blank()
+    monkeypatch.setattr(interactive.coordination, "declare_interactive", lambda *a, **k: blank)
+    monkeypatch.setattr(interactive, "_moshi_on", lambda: calls.append("moshi_on"))
+    monkeypatch.setattr(interactive, "_moshi_off", lambda: calls.append("moshi_off"))
+    with pytest.raises(RuntimeError, match="did not echo the agent-rtc workload claims"):
+        interactive.enter()
+    assert "moshi_on" not in calls
+    assert "renew_loop" not in calls
+    assert any(c.startswith("release:aborted") for c in calls)
     assert not interactive.is_active()
 
 

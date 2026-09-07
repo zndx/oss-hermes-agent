@@ -4,11 +4,13 @@ Enter on the first RTC session, leave on the last hangup. No silent
 fallback to local Qwen thinking or tiny.en.
 
 The posture is DECLARED to the federation as a coordination Activity
-(kind ``interactive_session``) through this engine → Signals → Airflow, with
-postures peers honour (gaius cedes its thinking uptime while the activity
-runs) — never by poking a peer's engine directly. A session that cannot be
-declared is denied. Leaving releases the activity; peers restore their own
-desired sets from the release (or from the horizon if Signals is unreachable).
+(kind ``interactive_session``) through this engine → Signals → Airflow.
+Claims on that Activity ARE the YuniKorn configuration; Signals applies
+them. This process never talks to Kubernetes. Postures are what peers
+honour (gaius cedes its thinking uptime while the activity runs). A
+session that cannot be declared is denied. Leaving releases the activity;
+peers restore their own desired sets from the release (or from the
+horizon if Signals is unreachable).
 """
 from __future__ import annotations
 
@@ -21,11 +23,9 @@ import httpx
 from hsengine.engine import coordination
 from hsengine.engine.federation import CompleteResult
 from hsengine.engine.yk_sentinel import (
-    CEREBRAS_WORKLOAD_ID,
-    apply_cerebras_thinking,
-    delete_sentinel,
+    CEREBRAS_QUEUE,
+    QUEUE as AGENT_RTC_QUEUE,
     moshi_serving,
-    wait_admitted,
 )
 
 log = logging.getLogger("hsengine.engine.interactive")
@@ -150,10 +150,35 @@ def _moshi_off() -> None:
         log.warning("moshi supervisor deactivate failed", exc_info=True)
 
 
+def _require_declared_workload(activity: dict) -> None:
+    """Signals must echo the agent-rtc claims and leave the Activity in force.
+
+    Those claims are the workload configuration; Signals applies them to
+    YuniKorn. Missing claims or a non-in-force state means Connect is denied
+    — never a local kubectl apply.
+    """
+    claims = {
+        (str(c.get("leaf") or ""), int(c.get("gpu") or 0))
+        for c in (activity.get("claims") or [])
+        if isinstance(c, dict)
+    }
+    needed = {(AGENT_RTC_QUEUE, 1), (CEREBRAS_QUEUE, 0)}
+    if not needed <= claims:
+        raise RuntimeError(
+            "DENY: Signals did not echo the agent-rtc workload claims on the "
+            f"declared activity (got {sorted(claims)!r})"
+        )
+    state = str(activity.get("state") or "")
+    if state not in coordination.IN_FORCE:
+        raise RuntimeError(
+            f"DENY: declared activity is not in force (state={state!r})"
+        )
+
+
 def enter(owner: str = "webrtc") -> None:
     """Enter the interactive posture. Order: declare the Activity to the
-    federation (via this engine → Signals), then the token-metered sentinel,
-    then moshi. Any failure releases what was declared and re-raises."""
+    federation (via this engine → Signals; Signals applies the YK claims),
+    then start moshi. Any failure releases what was declared and re-raises."""
     global _refcount, _active, _lease
     with _mu:
         _refcount += 1
@@ -163,8 +188,7 @@ def enter(owner: str = "webrtc") -> None:
     lease: coordination.ActivityLease | None = None
     try:
         lease = coordination.declare_interactive(owner)
-        apply_cerebras_thinking()
-        wait_admitted(CEREBRAS_WORKLOAD_ID, timeout_s=60)
+        _require_declared_workload(lease.activity)
         _moshi_on()
     except Exception as e:
         with _mu:
@@ -172,7 +196,6 @@ def enter(owner: str = "webrtc") -> None:
             _active = False
             _lease = None
         _moshi_off()
-        delete_sentinel(CEREBRAS_WORKLOAD_ID)
         if lease is not None:
             lease.release(f"aborted: {str(e)[:120]}")
         raise
@@ -195,7 +218,6 @@ def leave(outcome: str = "hangup") -> None:
         _active = False
         lease, _lease = _lease, None
     _moshi_off()
-    delete_sentinel(CEREBRAS_WORKLOAD_ID)
     if lease is not None:
         lease.release(outcome)
     log.info("agent-rtc interactive posture off; activity released — peers restore their desired sets")

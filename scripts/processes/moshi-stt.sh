@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
-# Resident moshi-server supervisor for devenv. CUDA + YK agent-rtc start
-# only when the engine POSTs /interactive/on (WebRTC session).
+# Resident moshi-server supervisor for devenv. CUDA starts only when the
+# engine POSTs /interactive/on (after declaring the Activity to Signals).
+# This process never talks to Kubernetes.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$ROOT"
 
-export KUBECONFIG="$HOME/.config/kube/rke2.yaml"
 # Devenv wrap first (Nix glibc). rustup cargo last so we never exec the
 # unwrapped ELF against Ubuntu libc.
 # shellcheck disable=SC1091

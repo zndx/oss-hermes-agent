@@ -260,11 +260,10 @@ in
     };
   };
 
-  # Kyutai STT (moshi-server / Candle) on YK leaf agent-rtc (1 GPU guaranteed).
-  # No CPU/whisper path: process exits if YK does not admit.
+  # Kyutai STT supervisor. CUDA moshi-server starts when the engine declares
+  # the interactive Activity; Signals applies the YK claims. No kubectl here.
   processes.moshi = {
     exec = ''
-      export KUBECONFIG="$HOME/.config/kube/rke2.yaml"
       export HF_HOME="''${HF_HOME:-/raid/cache/huggingface}"
       exec ${config.devenv.root}/scripts/processes/moshi-stt.sh
     '';

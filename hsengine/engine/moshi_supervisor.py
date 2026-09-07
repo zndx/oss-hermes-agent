@@ -1,8 +1,9 @@
 """Resident moshi-server supervisor for devenv.
 
-Always listens on the control port. CUDA moshi-server and the YK agent-rtc
-claim start only on POST /interactive/on (WebRTC session) and stop on
-POST /interactive/off. No whisper/CPU path.
+Always listens on the control port. CUDA moshi-server starts only on
+POST /interactive/on (WebRTC session) and stops on POST /interactive/off.
+YuniKorn claims are Signals' job (the engine declares the Activity first).
+This process never talks to Kubernetes. No whisper/CPU path.
 """
 from __future__ import annotations
 
@@ -19,10 +20,8 @@ from pathlib import Path
 
 from hsengine.engine.yk_sentinel import (
     WORKLOAD_ID,
-    admit,
     lease_one_gpu,
     moshi_serving,
-    release,
     release_gpu_lease,
 )
 
@@ -58,7 +57,6 @@ def activate() -> dict:
         binary = shutil_which("moshi-server")
         if not binary:
             raise RuntimeError("moshi-server not on PATH")
-        admit()
         gpu = lease_one_gpu(os.getpid())
         STATE.mkdir(parents=True, exist_ok=True)
         (STATE / "static").mkdir(exist_ok=True)
@@ -101,7 +99,6 @@ def deactivate() -> dict:
                 proc.kill()
         PID_FILE.unlink(missing_ok=True)
         release_gpu_lease()
-        release()
         return {"ok": True, "moshi": False}
 
 
