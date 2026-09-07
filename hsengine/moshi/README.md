@@ -15,8 +15,8 @@ the host and stops on the last Disconnect:
    Cerebras thinking is `root.external.token-metered`: remote pay-per-token
    Qwen 3.8-27B, no local GPU and no YK GPU floor.
 2. Signals materialises the Airflow run and asserts the agent-rtc claim.
-3. Host moshi-server starts (advisory `/tmp/zndx-gpu-leases` so CUDA does
-   not collide with another local process).
+3. Host moshi-server starts on the agent-rtc GPU: last free index after
+   peer ``Engine/Status.gpu_ids`` (heavy packs from 0). Leases only refuse.
 4. Hermes Complete for `agent`/`thinking` uses Cerebras `qwen-3.8-27b`.
 
 Disconnect: stop moshi-server, `ReleaseActivity`. Peers restore their

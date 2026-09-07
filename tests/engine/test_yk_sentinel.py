@@ -1,7 +1,11 @@
-"""Agent-rtc queue names and host GPU lease — no Kubernetes client."""
+"""Agent-rtc queue names and protocol GPU packing — no Kubernetes client."""
 from __future__ import annotations
 
-from hsengine.engine import yk_sentinel as yk
+import os
+
+import pytest
+
+from hsengine.engine import federation, yk_sentinel as yk
 
 
 def test_agent_rtc_queue_uses_the_requested_leaf():
@@ -12,10 +16,15 @@ def test_agent_rtc_queue_uses_the_requested_leaf():
     assert yk.GPU_TOKENS == 1
 
 
-def test_parse_gpu_rows_prefers_emptiest():
-    csv = "0, 21334\n1, 21334\n5, 4\n4, 10809\n"
-    assert yk.parse_gpu_rows(csv)[0] == 5
-    assert yk.parse_gpu_rows(csv) == [5, 4, 0, 1]
+def test_pick_agent_rtc_gpu_is_the_high_end_token():
+    assert yk.pick_agent_rtc_gpu(set(), 6) == 5
+    assert yk.pick_agent_rtc_gpu({0, 1, 2, 3}, 6) == 5
+    assert yk.pick_agent_rtc_gpu({0, 1, 2, 3, 5}, 6) == 4
+
+
+def test_pick_agent_rtc_gpu_denies_when_all_pinned():
+    with pytest.raises(RuntimeError, match="no free GPU"):
+        yk.pick_agent_rtc_gpu({0, 1, 2, 3, 4, 5}, 6)
 
 
 def test_yk_sentinel_has_no_kubernetes_client():
@@ -30,8 +39,20 @@ def test_yk_sentinel_has_no_kubernetes_client():
         "cerebras_thinking_yaml",
         "admit",
         "release",
+        "parse_gpu_rows",
     ):
         assert not hasattr(yk, name), name
+
+
+def test_lease_one_gpu_takes_the_agent_rtc_slot(tmp_path, monkeypatch):
+    monkeypatch.setattr(yk, "LEASE_DIR", tmp_path)
+    monkeypatch.setattr(
+        "hsengine.engine.federation.peer_gpu_occupancy",
+        lambda: (frozenset({0, 1, 2, 3}), 6),
+    )
+    idx = yk.lease_one_gpu(os.getpid())
+    assert idx == 5
+    assert yk.our_gpu_ids() == [5]
 
 
 def test_moshi_ld_path_includes_cuda():

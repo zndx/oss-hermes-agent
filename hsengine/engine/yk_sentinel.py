@@ -2,13 +2,12 @@
 
 YuniKorn configuration is Signals' job: this engine declares the interactive
 Activity (claims = queue config) over signals-protocol, and Signals applies
-it. This module never talks to Kubernetes. It only:
+it. This module never talks to Kubernetes.
 
-- names the leaves (agent-rtc is the local GPU claim; token-metered is the
-  remote Cerebras API and takes no local GPU)
-- takes an advisory 1-GPU host lease so moshi-server does not collide with
-  another local CUDA process
-- knows whether moshi-server is listening
+Physical GPU index comes from signals-protocol ``Engine/Status.gpu_ids``
+plus first-fit-from-zero packing (heavy 0–3, extract 4, agent-rtc last).
+``/tmp/zndx-gpu-leases`` only refuses a pin another local process already
+holds. nvidia-smi is not the planner.
 """
 from __future__ import annotations
 
@@ -16,7 +15,6 @@ import json
 import logging
 import os
 import socket
-import subprocess
 import sys
 from pathlib import Path
 
@@ -30,45 +28,30 @@ CEREBRAS_WORKLOAD_ID = "hermes-cerebras-thinking"
 CEREBRAS_QUEUE = "root.external.token-metered"
 CEREBRAS_CLASS = "external.token-metered"
 LEASE_DIR = Path(os.environ.get("ZNDX_GPU_LEASE_DIR", "/tmp/zndx-gpu-leases"))
+DEFAULT_TOTAL_GPUS = 6  # lab tinybox; same as advertise_federation_gpu.sh
 
 
-def parse_gpu_rows(csv_text: str) -> list[int]:
-    """Return GPU indices sorted by memory used (emptiest first)."""
-    rows: list[tuple[int, int]] = []
-    for line in csv_text.splitlines():
-        bits = [b.strip() for b in line.replace(" MiB", "").split(",")]
-        if len(bits) < 1 or not bits[0].isdigit():
-            continue
-        idx = int(bits[0])
-        used = 0
-        if len(bits) >= 2:
-            try:
-                used = int(float(bits[1]))
-            except ValueError:
-                used = 0
-        rows.append((used, idx))
-    rows.sort()
-    return [idx for _used, idx in rows]
+def total_gpus() -> int:
+    try:
+        from hsengine.config import load_config
+
+        raw = load_config().get("hermes.engine.total_gpus")
+        n = int(raw) if raw is not None else 0
+    except Exception:
+        n = 0
+    return n if n > 0 else DEFAULT_TOTAL_GPUS
 
 
-def _gpu_indices() -> list[int]:
-    proc = subprocess.run(
-        [
-            "nvidia-smi",
-            "--query-gpu=index,memory.used",
-            "--format=csv,noheader,nounits",
-        ],
-        capture_output=True,
-        text=True,
-        timeout=10,
-        check=False,
-    )
-    if proc.returncode != 0:
-        raise RuntimeError("nvidia-smi failed — agent-rtc needs a GPU")
-    found = parse_gpu_rows(proc.stdout)
-    if not found:
-        raise RuntimeError("nvidia-smi returned no GPUs")
-    return found
+def pick_agent_rtc_gpu(held: set[int] | frozenset[int], n: int) -> int:
+    """Last free index: heavy packs from 0, agent-rtc is the high-end token."""
+    if n < 1:
+        raise RuntimeError("DENY: total_gpus is 0 — cannot pack agent-rtc")
+    free = [i for i in range(int(n)) if i not in held]
+    if not free:
+        raise RuntimeError(
+            f"DENY: no free GPU after Status.gpu_ids {sorted(held)!r} (total={n})"
+        )
+    return free[-1]
 
 
 def _live_lease_gpus() -> set[int]:
@@ -100,39 +83,62 @@ def _live_lease_gpus() -> set[int]:
     return held
 
 
-def lease_one_gpu(pid: int, project: str = "hermes") -> int:
-    """Take an advisory 1-GPU lease. Fail if none are free."""
-    LEASE_DIR.mkdir(parents=True, exist_ok=True)
-    held = _live_lease_gpus()
-    for idx in _gpu_indices():
-        if idx in held:
+def our_gpu_ids() -> list[int]:
+    """GPUs this workload currently pins (for Engine/Status.gpu_ids)."""
+    ids: set[int] = set()
+    if not LEASE_DIR.is_dir():
+        return []
+    for path in LEASE_DIR.glob("gpu-*.owner.json"):
+        try:
+            payload = json.loads(path.read_text())
+        except (OSError, json.JSONDecodeError):
             continue
-        owner = LEASE_DIR / f"gpu-{idx}.owner.json"
-        if owner.exists():
-            try:
-                existing = json.loads(owner.read_text())
-                ep = existing.get("pid")
-                if isinstance(ep, int) and Path(f"/proc/{ep}").exists():
+        if payload.get("workload_id") != WORKLOAD_ID:
+            continue
+        pid = payload.get("pid")
+        if not isinstance(pid, int) or not Path(f"/proc/{pid}").exists():
+            continue
+        gpus = payload.get("gpus") or payload.get("gpu") or []
+        if isinstance(gpus, int):
+            ids.add(gpus)
+        elif isinstance(gpus, list):
+            for g in gpus:
+                try:
+                    ids.add(int(g))
+                except (TypeError, ValueError):
                     continue
-                owner.unlink()
-            except (OSError, json.JSONDecodeError, TypeError):
-                continue
-        payload = {
-            "pid": pid,
-            "project": project,
-            "gpus": [idx],
-            "workload_id": WORKLOAD_ID,
-            "queue": QUEUE,
-        }
+    return sorted(ids)
+
+
+def lease_one_gpu(pid: int, project: str = "hermes") -> int:
+    """Pin the agent-rtc token: last free index after peer Status.gpu_ids."""
+    from hsengine.engine import federation
+
+    LEASE_DIR.mkdir(parents=True, exist_ok=True)
+    proto_held, proto_n = federation.peer_gpu_occupancy()
+    held = set(proto_held) | _live_lease_gpus()
+    held -= set(our_gpu_ids())
+    n = proto_n if proto_n > 0 else total_gpus()
+    payload = {
+        "pid": pid,
+        "project": project,
+        "gpus": [],
+        "workload_id": WORKLOAD_ID,
+        "queue": QUEUE,
+    }
+    while True:
+        idx = pick_agent_rtc_gpu(held, n)
+        owner = LEASE_DIR / f"gpu-{idx}.owner.json"
+        payload["gpus"] = [idx]
         try:
             fd = os.open(str(owner), os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o644)
         except FileExistsError:
+            held.add(idx)
             continue
         with os.fdopen(fd, "w") as fh:
             json.dump(payload, fh)
-        log.info("leased GPU %s for %s", idx, WORKLOAD_ID)
+        log.info("leased GPU %s for %s (Status held=%s total=%s)", idx, WORKLOAD_ID, sorted(held), n)
         return idx
-    raise RuntimeError("no free GPU for agent-rtc (YK token is not a device bind)")
 
 
 def release_gpu_lease() -> None:

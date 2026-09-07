@@ -59,6 +59,7 @@ def _quiet():
         patch.object(server.probe, "probe_gateway", return_value=_gw()),
         patch.object(federation, "federation_peers", return_value=[GAIUS, AEGIR]),
         patch.object(federation, "peer_status", side_effect=lambda p, *a, **k: statuses.get(p)),
+        patch.object(server.yk, "our_gpu_ids", return_value=[]),
     )
 
 
@@ -67,8 +68,8 @@ def _run(coro):
 
 
 def test_status_advertises_hermes_agent_and_route_model():
-    p1, p2, p3, p4 = _quiet()
-    with p1, p2, p3, p4:
+    p1, p2, p3, p4, p5 = _quiet()
+    with p1, p2, p3, p4, p5:
         resp = _run(server.ZndxEngineServicer().Status(zpb.StatusRequest(), None))
     assert resp.project == "hermes"
     primary = [s for s in resp.surfaces if s.kind == "primary"]
@@ -77,6 +78,8 @@ def test_status_advertises_hermes_agent_and_route_model():
     assert "agent" in by_cap
     assert by_cap["agent"].healthy is True
     assert by_cap["instruct"].model == "Qwen/Qwen3.8-27B"
+    assert resp.total_gpus == 6
+    assert list(by_cap["agent"].gpu_ids) == []
     detail = json.loads(by_cap["instruct"].detail)
     assert detail["federation"]["accepted"] == ["thinking", "instruct"]
     assert detail["federation"]["route"]["capability"] == "thinking"
@@ -86,9 +89,23 @@ def test_status_advertises_hermes_agent_and_route_model():
         assert forbidden not in blob
 
 
+def test_peer_gpu_occupancy_unions_status_gpu_ids():
+    with (
+        patch.object(federation, "federation_peers", return_value=[GAIUS, AEGIR]),
+        patch.object(
+            federation,
+            "peer_status",
+            side_effect=lambda p, *a, **k: _gaius_status() if p == GAIUS else None,
+        ),
+    ):
+        held, n = federation.peer_gpu_occupancy()
+    assert held == frozenset({0, 1, 2, 3})
+    assert n == 6
+
+
 def test_server_query_surfaces():
-    p1, p2, p3, p4 = _quiet()
-    with p1, p2, p3, p4:
+    p1, p2, p3, p4, p5 = _quiet()
+    with p1, p2, p3, p4, p5:
         resp = _run(
             server.ZndxEngineServicer().ServerQuery(
                 zpb.ServerQueryRequest(kind=zpb.SERVER_QUERY_KIND_SURFACES, origin_project="gaius"),
@@ -101,8 +118,8 @@ def test_server_query_surfaces():
 
 
 def test_server_query_peers_canonicalizes_loopback_targets():
-    p1, p2, p3, p4 = _quiet()
-    with p1, p2, p3, p4:
+    p1, p2, p3, p4, p5 = _quiet()
+    with p1, p2, p3, p4, p5:
         resp = _run(
             server.ZndxEngineServicer().ServerQuery(
                 zpb.ServerQueryRequest(kind=zpb.SERVER_QUERY_KIND_PEERS), None
@@ -116,8 +133,8 @@ def test_server_query_peers_canonicalizes_loopback_targets():
 
 def test_server_query_unknown_kind_is_honest_empty():
     # QUEUES is a kind this engine does not serve: an honest empty answer.
-    p1, p2, p3, p4 = _quiet()
-    with p1, p2, p3, p4:
+    p1, p2, p3, p4, p5 = _quiet()
+    with p1, p2, p3, p4, p5:
         resp = _run(
             server.ZndxEngineServicer().ServerQuery(
                 zpb.ServerQueryRequest(kind=zpb.SERVER_QUERY_KIND_QUEUES), None
@@ -130,8 +147,8 @@ def test_server_query_unknown_kind_is_honest_empty():
 def test_server_query_schedules_is_the_workload_catalogue():
     # (2026-09-07) SCHEDULES is no longer empty: it is this engine's workload
     # catalogue — the interactive agent-rtc workflow, source=engine.
-    p1, p2, p3, p4 = _quiet()
-    with p1, p2, p3, p4:
+    p1, p2, p3, p4, p5 = _quiet()
+    with p1, p2, p3, p4, p5:
         resp = _run(
             server.ZndxEngineServicer().ServerQuery(
                 zpb.ServerQueryRequest(kind=zpb.SERVER_QUERY_KIND_SCHEDULES), None

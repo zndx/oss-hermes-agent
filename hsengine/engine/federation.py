@@ -186,6 +186,34 @@ def reset_status_cache() -> None:
         _status_cache.clear()
 
 
+def peer_gpu_occupancy() -> tuple[frozenset[int], int]:
+    """Union of peer ``Status.gpu_ids`` and the max advertised ``total_gpus``.
+
+    YK queue state is token counts, not devices. Physical pins are what
+    each engine reports on ``Endpoint.gpu_ids``. Empty Status is honest:
+    packing still uses ``total_gpus`` (or 0 if no peer answered).
+    """
+    held: set[int] = set()
+    total = 0
+    for peer in federation_peers():
+        st = peer_status(peer)
+        if not st:
+            continue
+        try:
+            total = max(total, int(st.get("total_gpus") or 0))
+        except (TypeError, ValueError):
+            pass
+        for ep in st.get("endpoints") or []:
+            if not isinstance(ep, dict):
+                continue
+            for raw in ep.get("gpu_ids") or []:
+                try:
+                    held.add(int(raw))
+                except (TypeError, ValueError):
+                    continue
+    return frozenset(held), total
+
+
 def plan_routes(capability: str | None, peers: list[str] | None = None) -> list[Route]:
     cap = normalize_capability(capability)
     accepted = accepted_capabilities(cap)

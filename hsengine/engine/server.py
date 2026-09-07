@@ -22,6 +22,7 @@ from hsengine.config import get_int, get_str
 from hsengine.engine import announce
 from hsengine.engine import complete as complete_svc
 from hsengine.engine import federation, lineage, oip_servicer, probe, s2s, surfaces
+from hsengine.engine import yk_sentinel as yk
 from hsengine.engine.generated import hermes_engine_pb2 as pb
 from hsengine.engine.generated import hermes_engine_pb2_grpc as pb_grpc
 from hsengine.engine.generated.inference.v2 import open_inference_grpc_pb2 as oip_pb
@@ -96,7 +97,7 @@ def _status_endpoints(dash: probe.SurfaceProbe) -> list:
             capability=CAPABILITY_AGENT,
             model="hsengine",
             healthy=True,
-            gpu_ids=[],
+            gpu_ids=list(yk.our_gpu_ids()),
             detail=json.dumps(
                 {
                     "dashboard": {"url": dash.url, "healthy": dash.healthy, "probe": dash.detail},
@@ -187,7 +188,7 @@ class ZndxEngineServicer(zpb_grpc.EngineServicer):
         return zpb.StatusResponse(
             project=PROJECT,
             endpoints=endpoints,
-            total_gpus=0,
+            total_gpus=yk.total_gpus(),
             surfaces=surfaces.local_surfaces(dash.healthy, gateway_healthy=gw.healthy),
         )
 
