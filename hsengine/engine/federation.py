@@ -186,6 +186,36 @@ def reset_status_cache() -> None:
         _status_cache.clear()
 
 
+def query_peer(
+    peer: str,
+    kind: int,
+    *,
+    limit: int = 0,
+    since_ms: int = 0,
+    stream: str = "",
+    timeout: float = 8.0,
+):
+    """One ``Engine/ServerQuery`` at a peer engine (two hops: the voice loop asks
+    THIS engine, this engine asks the peer). Returns the response or None when
+    the peer is unreachable / does not serve the kind — the caller says so."""
+    from hsengine.engine.generated.zndx.engine.v1 import engine_pb2 as zpb
+    from hsengine.engine.generated.zndx.engine.v1 import engine_pb2_grpc as zpb_grpc
+
+    target = str(peer or "").replace("grpc://", "").strip()
+    if not target:
+        return None
+    req = zpb.ServerQueryRequest(
+        kind=kind, origin_project="hermes", limit=int(limit or 0),
+        since_ms=int(since_ms or 0), stream=str(stream or ""),
+    )
+    try:
+        with grpc.insecure_channel(target) as ch:
+            return zpb_grpc.EngineStub(ch).ServerQuery(req, timeout=timeout)
+    except grpc.RpcError as e:
+        log.info("ServerQuery kind=%s at %s failed: %s", kind, target, e.code().name)
+        return None
+
+
 def peer_gpu_occupancy() -> tuple[frozenset[int], int]:
     """Union of peer ``Status.gpu_ids`` and the max advertised ``total_gpus``.
 

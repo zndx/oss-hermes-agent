@@ -132,6 +132,76 @@ def sitrep() -> dict[str, Any]:
     }
 
 
+_MAX_THOUGHTS = 8
+
+
+def _brief_thought(project: str, t: Any) -> dict[str, Any]:
+    at = datetime.fromtimestamp(int(t.at_ms) / 1000, tz=timezone.utc) if t.at_ms else None
+    return {
+        "project": project,
+        "when": at.strftime("%Y-%m-%d %H:%MZ") if at else "",
+        "kind": t.kind or "",
+        "title": t.title or "",
+        "summary": t.summary or t.excerpt or "",
+        "domains": list(t.domains)[:6],
+        "salience": round(float(t.salience or 0.0), 2),
+        "chain": (t.chain_id or "")[-8:],
+        "generation": int(t.generation or 0),
+    }
+
+
+def recent_thoughts(*, limit: int = 6, since_hours: int = 24, kind: str = "") -> dict[str, Any]:
+    """What the federation's cognition has been thinking about — the newest
+    persisted thoughts of every peer that serves ServerQuery kind=THOUGHTS
+    (gaius today), newest first, with each peer's own honest note (idle, empty,
+    unreachable). Content, not counts; the peers' KBs stay the deep surface."""
+    from hsengine.engine import federation
+    from hsengine.engine.generated.zndx.engine.v1 import engine_pb2 as zpb
+
+    n = max(1, min(int(limit or 6), _MAX_THOUGHTS))
+    hours = max(1, int(since_hours or 24))
+    since_ms = int((datetime.now(timezone.utc).timestamp() - hours * 3600) * 1000)
+    peers: list[dict[str, Any]] = []
+    thoughts: list[dict[str, Any]] = []
+    for target in _status_targets():
+        resp = federation.query_peer(
+            target, zpb.SERVER_QUERY_KIND_THOUGHTS, limit=n, since_ms=since_ms, stream=kind or ""
+        )
+        if resp is None:
+            peers.append({"target": target, "reachable": False})
+            continue
+        h = resp.thoughts_hint
+        if not h.project and not h.thoughts and not h.note:
+            continue  # this peer has no cognition unit — honest silence, not an error
+        newest = (
+            datetime.fromtimestamp(int(h.newest_ms) / 1000, tz=timezone.utc).strftime("%Y-%m-%d %H:%MZ")
+            if h.newest_ms
+            else ""
+        )
+        peers.append(
+            {
+                "target": target,
+                "project": h.project or resp.project,
+                "reachable": True,
+                "in_window": int(h.total_in_window),
+                "cycles": int(h.cycles_in_window),
+                "newest": newest,
+                "note": h.note or "",
+            }
+        )
+        thoughts.extend(_brief_thought(h.project or resp.project, t) for t in h.thoughts)
+    thoughts.sort(key=lambda t: t.get("when") or "", reverse=True)
+    return {
+        "ok": True,
+        "when": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%MZ"),
+        "window_hours": hours,
+        "kind": kind or "all",
+        "count": len(thoughts[:n]),
+        "thoughts": thoughts[:n],
+        "peers": peers,
+    }
+
+
 CEREBRAS_TOOLS: list[dict[str, Any]] = [
     {
         "type": "function",
@@ -175,6 +245,35 @@ CEREBRAS_TOOLS: list[dict[str, Any]] = [
             },
         },
     },
+    {
+        "type": "function",
+        "function": {
+            "name": "recent_thoughts",
+            "description": (
+                "What you have been thinking about lately: the newest thoughts "
+                "the federation's cognition has persisted — patterns, connections, "
+                "questions, reflections — with when each was thought and what it "
+                "draws on. Call this whenever they ask what's on your mind, what "
+                "you've been thinking, any new ideas, insights or connections, or "
+                "what the research has turned up — casual phrasing counts. Speak "
+                "about the thoughts in your own words and say roughly when they "
+                "were thought; if the note says cognition is idle or the store is "
+                "empty, say that plainly."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "limit": {"type": "integer", "description": "How many thoughts, 1–8 (default 6)."},
+                    "since_hours": {"type": "integer", "description": "Look back this many hours (default 24)."},
+                    "kind": {
+                        "type": "string",
+                        "description": "pattern | connection | question | reflection | audit, or empty for all.",
+                    },
+                },
+                "additionalProperties": False,
+            },
+        },
+    },
 ]
 
 
@@ -188,4 +287,17 @@ def dispatch(name: str, args: dict[str, Any] | None = None) -> str:
         if active_only is None:
             active_only = True
         return json.dumps(activities(kind=kind, active_only=bool(active_only)), default=str)
+    if name == "recent_thoughts":
+        try:
+            limit = int(args.get("limit") or 6)
+        except (TypeError, ValueError):
+            limit = 6
+        try:
+            since_hours = int(args.get("since_hours") or 24)
+        except (TypeError, ValueError):
+            since_hours = 24
+        return json.dumps(
+            recent_thoughts(limit=limit, since_hours=since_hours, kind=str(args.get("kind") or "")),
+            default=str,
+        )
     return json.dumps({"ok": False, "error": f"unknown tool {name}"})

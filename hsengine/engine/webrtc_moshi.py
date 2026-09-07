@@ -24,8 +24,14 @@ SPOKEN_SYSTEM = (
     "When they ask how things are going, what's happening, whether anything "
     "is down, a briefing, or any operational check-in — even casually — "
     "call sitrep first (and list_activities only if you need a closer look), "
-    "then talk about what you found in a few sentences. Do not ask them to "
-    "use special words. Do not invent who is healthy or what is running."
+    "then talk about what you found in a few sentences. When they ask what "
+    "you have been thinking about, what's on your mind, whether you've had any "
+    "new ideas, insights or connections, or what the research has turned up — "
+    "call recent_thoughts and then speak about those thoughts in your own words, "
+    "as the federation's cognition: what each was about, what it connected, and "
+    "roughly when it was thought; if the note says cognition is idle or the "
+    "store is empty, say so plainly instead of inventing thoughts. Do not ask "
+    "them to use special words. Do not invent who is healthy or what is running."
 )
 
 
