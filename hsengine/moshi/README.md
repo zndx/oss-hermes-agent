@@ -26,6 +26,10 @@ The Listen tab burns **user** speech onto the outbound video. That is
 **Kyutai STT** (`stt-1b-en_fr`) served by **moshi-server** (Rust/Candle)
 after the Activity is in force.
 
+Outbound audio is one WebRTC track: the clip soundtrack until combined
+agent speech is queued, then speech **replaces** those samples (same
+voice, later via one Kyutai TTS). Clip audio does not mix under speech.
+
 There is no whisper/CPU path. If Signals refuses the declare, moshi-server
 is missing, or no GPU can be leased, agent-rtc is unavailable.
 

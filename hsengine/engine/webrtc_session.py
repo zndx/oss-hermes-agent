@@ -120,6 +120,7 @@ class WebRtcHub:
         self._pcs: dict[str, object] = {}
         self._tracks: dict[str, list[object]] = {}
         self._tasks: dict[str, list[asyncio.Task]] = {}
+        self._speech: dict[str, object] = {}
 
     async def offer(self, sdp: str, typ: str = "offer") -> dict[str, str]:
         try:
@@ -147,6 +148,7 @@ class WebRtcHub:
 
         from hsengine.engine import interactive
         from hsengine.engine.webrtc_captions import CaptionBoard, caption_track
+        from hsengine.engine.webrtc_mix import SpeechBoard, mix_audio_track
         from hsengine.engine.webrtc_stt import follow_audio, stt_available
 
         await interactive.enter_async(owner=f"webrtc:{session_id}")
@@ -159,16 +161,18 @@ class WebRtcHub:
         except Exception:
             await self._drop(session_id)
             raise
-        video, audio = looping_tracks(src)
+        video, clip_audio = looping_tracks(src)
+        speech = SpeechBoard()
+        self._speech[session_id] = speech
         tracks: list[object] = []
         if video is not None:
             painted = caption_track(video, board) if captions else video
             pc.addTrack(painted)  # type: ignore[arg-type]
             tracks.append(painted)
-        if audio is not None:
-            pc.addTrack(audio)  # type: ignore[arg-type]
-            tracks.append(audio)
-        if not tracks:
+        mixed = mix_audio_track(clip_audio, speech)
+        pc.addTrack(mixed)  # type: ignore[arg-type]
+        tracks.append(mixed)
+        if video is None and clip_audio is None:
             await self._drop(session_id)
             raise FileNotFoundError(f"no audio/video tracks in {src}")
         self._tracks[session_id] = tracks
@@ -198,6 +202,10 @@ class WebRtcHub:
             "source": str(src),
         }
 
+    def speech(self, session_id: str) -> object | None:
+        """The session's agent-speech board (None after hangup)."""
+        return self._speech.get(session_id)
+
     async def hangup(self, session_id: str) -> bool:
         if session_id not in self._pcs and session_id not in self._tracks:
             return False
@@ -207,6 +215,7 @@ class WebRtcHub:
     async def _drop(self, session_id: str) -> None:
         for task in self._tasks.pop(session_id, []):
             task.cancel()
+        self._speech.pop(session_id, None)
         for track in self._tracks.pop(session_id, []):
             try:
                 track.stop()  # type: ignore[union-attr]
