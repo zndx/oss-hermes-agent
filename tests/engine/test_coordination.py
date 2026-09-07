@@ -38,6 +38,7 @@ class FakeScheduler(spb_grpc.SchedulerServicer):
         self.watch_hold = threading.Event()
         self._n = 0
         self.refuse = ""
+        self.listed: list[zpb.Activity] = []
 
     def _activity(self, req, *, state, run_n: int, horizon_ns: int, ended_ns: int = 0, note: str = "") -> zpb.Activity:
         a = zpb.Activity(
@@ -81,15 +82,17 @@ class FakeScheduler(spb_grpc.SchedulerServicer):
 
     def ReleaseActivity(self, request, context):  # noqa: N802
         self.releases.append(request)
-        a = zpb.Activity()
-        a.CopyFrom(self.last)
-        a.state = zpb.ACTIVITY_RELEASED
-        a.ended_ns = time.time_ns()
+        a = zpb.Activity(activity_id=request.activity_id, state=zpb.ACTIVITY_RELEASED, ended_ns=time.time_ns())
+        if getattr(self, "last", None) is not None:
+            a.CopyFrom(self.last)
+            a.activity_id = request.activity_id
+            a.state = zpb.ACTIVITY_RELEASED
+            a.ended_ns = time.time_ns()
         a.note = f"released by {request.peer}: {request.outcome}"
         return spb.ActivityResponse(accepted=True, activity=a)
 
     def ListActivities(self, request, context):  # noqa: N802
-        return spb.ListActivitiesResponse(activities=[self.last] if self._n else [], observed_ns=time.time_ns())
+        return spb.ListActivitiesResponse(activities=list(self.listed), observed_ns=time.time_ns())
 
     def WatchActivities(self, request, context):  # noqa: N802
         for acts in self.watch_events:
@@ -199,6 +202,20 @@ def test_default_heartbeat_is_well_under_signals_lease_ttl():
 def test_declare_unreachable_signals_is_denied_with_guru():
     with pytest.raises(RuntimeError, match=coordination.GURU_DECLAREFAIL.replace(".", r"\.")):
         coordination.declare_interactive("webrtc", horizon_s=60, addr="127.0.0.1:1")
+
+
+def test_declare_releases_stale_in_force_interactive(signals):
+    stale = zpb.Activity(
+        activity_id="old-act",
+        kind="interactive_session",
+        peer="hermes",
+        state=zpb.ACTIVITY_RUNNING,
+    )
+    signals.listed = [stale]
+    coordination.declare_interactive("webrtc", horizon_s=60, addr=signals.addr)
+    assert signals.releases[0].activity_id == "old-act"
+    assert signals.releases[0].outcome == "reconnect"
+    assert len(signals.declares) == 1
 
 
 def test_declare_refused_by_signals_is_denied(signals):

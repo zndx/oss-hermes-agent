@@ -339,6 +339,12 @@ async def serve() -> None:
             watcher._task.cancel()
         if syncer is not None and syncer._task is not None:
             syncer._task.cancel()
+        try:
+            from hsengine.engine import interactive
+
+            interactive.leave("engine-stop")
+        except Exception:
+            log.warning("interactive leave on engine stop failed", exc_info=True)
 
 
 def main() -> None:

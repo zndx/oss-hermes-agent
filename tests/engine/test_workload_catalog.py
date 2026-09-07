@@ -28,6 +28,9 @@ class FakeScheduler(spb_grpc.SchedulerServicer):
         self.refuse = ""
         self.unimplemented = False
 
+    def ListActivities(self, request, context):  # noqa: N802
+        return spb.ListActivitiesResponse()
+
     def DeclareActivity(self, request, context):  # noqa: N802
         self.declares.append(request)
         a = zpb.Activity(

@@ -356,6 +356,66 @@ class ActivityLease:
         return self.activity
 
 
+def list_activities(
+    *,
+    kind: str = KIND_INTERACTIVE,
+    active_only: bool = True,
+    addr: str | None = None,
+) -> list[dict[str, Any]]:
+    addr = addr or target()
+    req = spb.ListActivitiesRequest(peer=PEER, kind=kind, active_only=active_only, limit=50)
+    channel, stub = _stub(addr)
+    try:
+        resp = stub.ListActivities(req, timeout=RPC_TIMEOUT_S)
+    except grpc.RpcError as e:
+        raise _rpc_error(GURU_DECLAREFAIL, "ListActivities", addr, e) from e
+    finally:
+        channel.close()
+    return [activity_to_dict(a) for a in resp.activities]
+
+
+def release_activity(activity_id: str, outcome: str, *, addr: str | None = None) -> None:
+    addr = addr or target()
+    req = spb.ReleaseActivityRequest(peer=PEER, activity_id=activity_id, outcome=outcome[:200])
+    channel, stub = _stub(addr)
+    try:
+        resp = stub.ReleaseActivity(req, timeout=RPC_TIMEOUT_S)
+    except grpc.RpcError as e:
+        raise _rpc_error(GURU_RELEASEFAIL, "ReleaseActivity", addr, e) from e
+    finally:
+        channel.close()
+    if not resp.accepted:
+        raise RuntimeError(f"{GURU_RELEASEFAIL} ReleaseActivity refused: {resp.error or 'no reason given'}")
+    log.info("activity %s released (%s)", activity_id, outcome)
+
+
+def release_stale_interactive(*, addr: str | None = None) -> int:
+    """Drop this peer's in-force interactive_session claims so Connect can re-declare.
+
+    Engine restarts used to leave a 3600s horizon holding agent-rtc (max 1).
+    """
+    try:
+        acts = list_activities(kind=KIND_INTERACTIVE, active_only=True, addr=addr)
+    except Exception as e:
+        log.warning("could not list interactive activities: %s", e)
+        return 0
+    n = 0
+    for a in acts:
+        if a.get("state") not in IN_FORCE:
+            continue
+        aid = str(a.get("activity_id") or "")
+        if not aid:
+            continue
+        try:
+            release_activity(aid, "reconnect", addr=addr)
+            n += 1
+        except Exception as e:
+            log.warning("release stale %s failed: %s", aid, e)
+    if n:
+        log.info("released %s stale interactive_session activities", n)
+    return n
+
+
 def declare_interactive(
     owner: str,
     horizon_s: int | None = None,
@@ -369,6 +429,7 @@ def declare_interactive(
     #HS.COORD.00000001.DECLAREFAIL when the activity cannot be declared."""
     addr = addr or target()
     h = int(horizon_s or interactive_horizon_s())
+    release_stale_interactive(addr=addr)
     req = spb.DeclareActivityRequest(
         peer=PEER,
         request_id=uuid7(),
