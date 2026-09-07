@@ -85,6 +85,9 @@ async def follow_audio(track: Any, board: Any) -> None:
 
     captioner = MoshiCaptioner(board)
     url = moshi_url()
+    if "auth_id=" not in url:
+        sep = "&" if "?" in url else "?"
+        url = f"{url}{sep}auth_id={moshi_key()}"
     headers = {"kyutai-api-key": moshi_key()}
     chunks: asyncio.Queue[Any] = asyncio.Queue(maxsize=48)
 

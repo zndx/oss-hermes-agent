@@ -83,3 +83,21 @@ def test_clip_is_silence_after_first_loop_unless_speech():
     speech = np.ones(8, dtype=np.float32) * 0.5
     out = mix_pcm(silent, speech)
     assert int(out[0]) > 10000
+
+
+def test_apply_mix_frame_does_not_keep_clip_after_gate():
+    import av
+
+    from hsengine.engine.webrtc_mix import SpeechBoard, SoundtrackGate, apply_mix_frame
+
+    clip = np.ones((2, 960), dtype=np.float32) * 0.4
+    frame = av.AudioFrame.from_ndarray(clip, format="fltp", layout="stereo")
+    from fractions import Fraction
+
+    frame.sample_rate = 48000
+    frame.pts = 0
+    frame.time_base = Fraction(1, 48000)
+    gate = SoundtrackGate(has_video=True)
+    gate.on_track_eof("video")
+    out = apply_mix_frame(frame, SpeechBoard(), gate)
+    assert float(np.max(np.abs(out.to_ndarray()))) < 1e-6

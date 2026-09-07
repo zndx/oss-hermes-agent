@@ -179,18 +179,23 @@ def apply_mix_frame(frame: Any, board: SpeechBoard, gate: SoundtrackGate | None 
         return frame
     try:
         arr = frame.to_ndarray()
-        if gate is not None and not gate.clip_live():
+        silenced = gate is not None and not gate.clip_live()
+        if silenced:
             arr = np.zeros_like(arr)
         n = int(arr.shape[-1] if arr.ndim else arr.size)
         rate = int(getattr(frame, "sample_rate", 0) or CANON_RATE)
         mixed = mix_pcm(arr, board.pull(n, rate))
-        if mixed is arr or np.array_equal(mixed, arr):
+        # After the first video loop, arr is a zero copy — it equals mixed when
+        # there is no speech, but the original frame still has clip samples.
+        if not silenced and (mixed is arr or np.array_equal(mixed, arr)):
             return frame
         fmt = getattr(getattr(frame, "format", None), "name", None) or "s16"
         layout = getattr(getattr(frame, "layout", None), "name", None) or "stereo"
         out = av.AudioFrame.from_ndarray(np.asarray(mixed), format=fmt, layout=layout)
         out.pts = frame.pts
-        out.time_base = frame.time_base
+        tb = getattr(frame, "time_base", None)
+        if tb is not None:
+            out.time_base = tb
         out.sample_rate = rate
         return out
     except Exception:
