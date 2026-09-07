@@ -43,7 +43,8 @@ def test_complete_cerebras_posts_qwen38(monkeypatch):
     client.__enter__.return_value = client
     client.__exit__.return_value = False
     with patch("hsengine.engine.interactive.httpx.Client", return_value=client):
-        result = interactive.complete_cerebras(prompt="hi")
+        with patch("hsengine.engine.interactive._speak_cerebras"):
+            result = interactive.complete_cerebras(prompt="hi")
     assert result.text == "hello"
     assert result.peer == "cerebras"
     assert result.model == "qwen-3.8-27b"

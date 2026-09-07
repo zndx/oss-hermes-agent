@@ -38,7 +38,7 @@ _worker: subprocess.Popen | None = None
 
 
 def _moshi_env(gpu: int) -> dict[str, str]:
-    """CUDA_VISIBLE_DEVICES only. Library path is the devenv moshi-server wrap."""
+    """CUDA_VISIBLE_DEVICES + Kyutai TTS (Py) site-packages. Wrap owns libc."""
     env = os.environ.copy()
     profile_bin = ROOT / ".devenv" / "profile" / "bin"
     cargo_bin = Path.home() / ".cargo" / "bin"
@@ -46,6 +46,12 @@ def _moshi_env(gpu: int) -> dict[str, str]:
     env["CUDA_HOME"] = env.get("CUDA_HOME", "/usr/local/cuda")
     env["CUDA_VISIBLE_DEVICES"] = str(gpu)
     env["HF_HOME"] = env.get("HF_HOME", "/raid/cache/huggingface")
+    tts_site = ROOT / ".devenv" / "state" / "tts-venv" / "lib" / "python3.11" / "site-packages"
+    if tts_site.is_dir():
+        env["PYTHONPATH"] = f"{tts_site}{os.pathsep}{env.get('PYTHONPATH', '')}".rstrip(os.pathsep)
+        torch_lib = tts_site / "torch" / "lib"
+        if torch_lib.is_dir():
+            env["MOSHI_EXTRA_LIBS"] = str(torch_lib)
     return env
 
 
@@ -62,21 +68,23 @@ def activate() -> dict:
         (STATE / "static").mkdir(exist_ok=True)
         (STATE / "logs").mkdir(exist_ok=True)
         config = os.environ.get("MOSHI_STT_CONFIG", str(ROOT / "hsengine/moshi/stt-1b.toml"))
+        log_path = STATE / "logs" / "moshi-server.log"
+        log_f = open(log_path, "ab")
         _worker = subprocess.Popen(
             [binary, "worker", "--config", config, "--port", str(MOSHI_PORT)],
             cwd=str(STATE),
             env=_moshi_env(gpu),
-            stdout=subprocess.DEVNULL,
-            stderr=None,
+            stdout=log_f,
+            stderr=log_f,
         )
         PID_FILE.write_text(str(_worker.pid))
-        deadline = time.monotonic() + 120
+        deadline = time.monotonic() + 300
         while time.monotonic() < deadline:
             if _worker.poll() is not None:
                 raise RuntimeError(f"moshi-server exited {_worker.returncode}")
             if moshi_serving(port=MOSHI_PORT):
-                log.info("moshi-server listening on :%s gpu=%s", MOSHI_PORT, gpu)
-                return {"ok": True, "moshi": True, "gpu": gpu}
+                log.info("moshi-server listening on :%s gpu=%s (stt+tts)", MOSHI_PORT, gpu)
+                return {"ok": True, "moshi": True, "gpu": gpu, "tts": True}
             time.sleep(0.4)
         raise RuntimeError("moshi-server did not listen on :5080")
 

@@ -140,7 +140,8 @@ in
         zlib
         libffi
       ]}"
-      export LD_LIBRARY_PATH="$nvidia:/usr/local/cuda/lib64:$libs"
+      extra="''${MOSHI_EXTRA_LIBS:-}"
+      export LD_LIBRARY_PATH="$nvidia:/usr/local/cuda/lib64:$libs''${extra:+:$extra}"
       exec "$real" "$@"
     '')
   ] ++ lib.optional (pkgs ? secretspec) pkgs.secretspec;

@@ -110,8 +110,9 @@ def complete_cerebras(
     choice = (data.get("choices") or [{}])[0]
     msg = choice.get("message") or {}
     usage = data.get("usage") or {}
-    return CompleteResult(
-        text=(msg.get("content") or "").strip(),
+    text = (msg.get("content") or "").strip()
+    result = CompleteResult(
+        text=text,
         model=data.get("model") or model,
         prompt_tokens=int(usage.get("prompt_tokens") or 0),
         completion_tokens=int(usage.get("completion_tokens") or 0),
@@ -121,6 +122,23 @@ def complete_cerebras(
         peer="cerebras",
         capability="thinking",
     )
+    if text:
+        threading.Thread(
+            target=_speak_cerebras,
+            args=(text,),
+            daemon=True,
+            name="cerebras-tts",
+        ).start()
+    return result
+
+
+def _speak_cerebras(text: str) -> None:
+    try:
+        from hsengine.engine.webrtc_tts import speak_on_session_boards
+
+        speak_on_session_boards(text, source="cerebras")
+    except Exception:
+        log.exception("Kyutai TTS failed for Cerebras text")
 
 
 def _moshi_on() -> None:

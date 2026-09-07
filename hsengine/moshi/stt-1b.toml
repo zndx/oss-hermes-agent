@@ -1,10 +1,9 @@
-# Kyutai STT (delayed-streams / Moshi stack) for Hermes WebRTC captions.
-# Candle/Rust moshi-server. 1B en+fr, ~0.5s delay, semantic VAD.
-# Not the 7B Moshi dialogue model — that model's text stream is Moshi's
-# inner monologue (assistant speech), not user ASR.
+# Kyutai STT + TTS on one moshi-server worker (one GPU).
+# STT: Candle BatchedAsr (captions). TTS: Py DSM 1.6B (Cerebras read-aloud).
+# Not the 7B Moshi dialogue model.
 static_dir = "./static/"
 log_dir = "./logs"
-instance_name = "hermes-stt"
+instance_name = "hermes-agent-rtc"
 authorized_ids = ["public_token"]
 
 [modules.asr]
@@ -48,3 +47,20 @@ max_seq_len = 40960
 [modules.asr.model.extra_heads]
 num_heads = 4
 dim = 6
+
+# Cerebras return text → one voice on the WebRTC mix (takes precedence over clip audio).
+[modules.tts_py]
+type = "Py"
+path = "/api/tts_streaming"
+text_tokenizer_file = "hf://kyutai/tts-1.6b-en_fr/tokenizer_spm_8k_en_fr_audio.model"
+batch_size = 1
+text_bos_token = 1
+
+[modules.tts_py.py]
+log_folder = "./logs"
+voice_folder = "hf-snapshot://kyutai/tts-voices/**/*.safetensors"
+default_voice = "unmute-prod-website/default_voice.wav"
+cfg_coef = 2.0
+cfg_is_no_text = true
+padding_between = 1
+n_q = 24

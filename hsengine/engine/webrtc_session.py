@@ -195,6 +195,22 @@ class WebRtcHub:
         answer = await pc.createAnswer()
         await pc.setLocalDescription(answer)
         await _ice_complete(pc)
+
+        async def _opening() -> None:
+            try:
+                await asyncio.to_thread(
+                    interactive.complete_cerebras,
+                    prompt=(
+                        "Speak one short greeting as the Hermes listen session. "
+                        "You are Qwen 3.8 on Cerebras. One spoken sentence only."
+                    ),
+                    max_tokens=64,
+                    reasoning_effort="none",
+                )
+            except Exception:
+                log.exception("cerebras opening line failed")
+
+        loop.create_task(_opening())
         return {
             "sdp": pc.localDescription.sdp,
             "type": pc.localDescription.type,
