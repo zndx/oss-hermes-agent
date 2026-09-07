@@ -59,8 +59,8 @@ text_bos_token = 1
 [modules.tts_py.py]
 log_folder = "./logs"
 voice_folder = "hf-snapshot://kyutai/tts-voices/**/*.safetensors"
-# Alba MacKenna casual: CC BY 4.0 (permissive). Not Expresso CC-NC.
-default_voice = "alba-mackenna/casual.wav"
+# VCTK p329: Unmute Watercooler English female, CC BY 4.0. Casual read male.
+default_voice = "unmute-prod-website/p329_022.wav"
 cfg_coef = 2.0
 cfg_is_no_text = true
 padding_between = 1
