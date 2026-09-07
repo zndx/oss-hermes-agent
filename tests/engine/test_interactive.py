@@ -8,6 +8,11 @@ import pytest
 from hsengine.engine import interactive
 
 
+def test_spoken_text_strips_markdown_and_urls():
+    assert interactive.spoken_text("Hello **there** from https://x.ai now") == "Hello there from now"
+    assert interactive.spoken_text("```code``` hi") == "hi"
+
+
 @pytest.fixture(autouse=True)
 def _reset_interactive():
     with interactive._mu:

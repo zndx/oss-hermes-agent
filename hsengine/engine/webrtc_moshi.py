@@ -15,6 +15,12 @@ log = logging.getLogger("hsengine.engine.webrtc.moshi")
 
 _MOSHI_RATE = 24000
 _CHUNK = 1920  # 80 ms at 24 kHz
+_TURN_QUIET_S = 1.2
+_TURN_MIN_CHARS = 8
+SPOKEN_SYSTEM = (
+    "You are Hermes on a live voice call. Reply in one or two short spoken "
+    "sentences. No markdown, lists, code, or URLs. Plain words only."
+)
 
 
 def _cfg_str(path: str, default: str) -> str:
@@ -45,6 +51,62 @@ def moshi_host_port() -> tuple[str, int]:
     if parsed.scheme == "ws" and parsed.port is None:
         port = 5080
     return host, port
+
+
+def utterance_ready(words: list[str], *, min_chars: int = _TURN_MIN_CHARS) -> str | None:
+    text = " ".join(w for w in words if w).strip()
+    if len(text) < min_chars:
+        return None
+    return text
+
+
+class TurnTaker:
+    """Flush a user utterance after a quiet gap, then Cerebras → TTS."""
+
+    def __init__(self, loop: asyncio.AbstractEventLoop, quiet_s: float = _TURN_QUIET_S) -> None:
+        self._loop = loop
+        self._quiet_s = quiet_s
+        self._words: list[str] = []
+        self._gen = 0
+        self._task: asyncio.Task | None = None
+        self._busy = False
+
+    def on_word(self, word: str) -> None:
+        self._words.append(word)
+        self._gen += 1
+        gen = self._gen
+        if self._task is not None:
+            self._task.cancel()
+        self._task = self._loop.create_task(self._flush(gen))
+
+    async def _flush(self, gen: int) -> None:
+        try:
+            await asyncio.sleep(self._quiet_s)
+        except asyncio.CancelledError:
+            return
+        if gen != self._gen or self._busy:
+            return
+        text = utterance_ready(self._words)
+        self._words.clear()
+        if not text:
+            return
+        self._busy = True
+        try:
+            log.info("user utterance %r", text)
+            from hsengine.engine import interactive
+
+            await asyncio.to_thread(
+                interactive.complete_cerebras,
+                prompt=text,
+                system_prompt=SPOKEN_SYSTEM,
+                max_tokens=80,
+                temperature=0.5,
+                reasoning_effort="none",
+            )
+        except Exception:
+            log.exception("cerebras turn failed")
+        finally:
+            self._busy = False
 
 
 class MoshiCaptioner:
@@ -85,6 +147,7 @@ async def follow_audio(track: Any, board: Any) -> None:
     import websockets
 
     captioner = MoshiCaptioner(board)
+    turns = TurnTaker(asyncio.get_running_loop())
     url = moshi_url()
     if "auth_id=" not in url:
         sep = "&" if "?" in url else "?"
@@ -145,7 +208,11 @@ async def follow_audio(track: Any, board: Any) -> None:
                         async for raw in ws:
                             data = msgpack.unpackb(raw, raw=False)
                             if isinstance(data, dict):
-                                captioner.on_message(data)
+                                line = captioner.on_message(data)
+                                if line and data.get("type") == "Word":
+                                    word = str(data.get("text") or "").strip()
+                                    if word:
+                                        turns.on_word(word)
 
                     send_task = asyncio.create_task(sender())
                     recv_task = asyncio.create_task(receiver())

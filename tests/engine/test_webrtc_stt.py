@@ -11,7 +11,7 @@ import pytest
 from hsengine.engine.generated import hermes_engine_pb2 as pb
 from hsengine.engine.server import HermesEngineServicer
 from hsengine.engine.webrtc_captions import CaptionBoard, paint_caption
-from hsengine.engine.webrtc_moshi import MoshiCaptioner
+from hsengine.engine.webrtc_moshi import MoshiCaptioner, utterance_ready
 from hsengine.engine.webrtc_stt import frame_to_mono16k, stt_available
 
 
@@ -45,6 +45,11 @@ def test_moshi_captioner_joins_word_events():
     cap.on_message({"type": "Word", "text": "three"})
     assert board.get() == "there one two three"
     assert cap.on_message({"type": "Step", "prs": [0.1, 0.2]}) is None
+
+
+def test_utterance_ready_needs_enough_text():
+    assert utterance_ready(["hi"]) is None
+    assert utterance_ready(["hello", "there"]) == "hello there"
 
 
 def test_caption_board_holds_then_clears(monkeypatch):

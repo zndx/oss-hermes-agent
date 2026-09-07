@@ -122,20 +122,34 @@ def complete_cerebras(
         peer="cerebras",
         capability="thinking",
     )
-    if text:
+    spoken = spoken_text(text)
+    if spoken:
         threading.Thread(
             target=_speak_cerebras,
-            args=(text,),
+            args=(spoken,),
             daemon=True,
             name="cerebras-tts",
         ).start()
     return result
 
 
+def spoken_text(text: str) -> str:
+    """Plain words for Kyutai TTS — no markdown or URLs."""
+    import re
+
+    t = " ".join((text or "").split())
+    t = re.sub(r"```[\s\S]*?```", " ", t)
+    t = re.sub(r"`+", "", t)
+    t = re.sub(r"https?://\S+", "", t)
+    t = re.sub(r"[#*_\[\]]+", " ", t)
+    return " ".join(t.split())
+
+
 def _speak_cerebras(text: str) -> None:
     try:
         from hsengine.engine.webrtc_tts import speak_on_session_boards
 
+        log.info("speaking %r", text[:200])
         speak_on_session_boards(text, source="cerebras")
     except Exception:
         log.exception("Kyutai TTS failed for Cerebras text")

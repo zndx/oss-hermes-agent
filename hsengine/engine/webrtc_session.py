@@ -209,11 +209,13 @@ class WebRtcHub:
             try:
                 await asyncio.to_thread(
                     interactive.complete_cerebras,
-                    prompt=(
-                        "Speak one short greeting as the Hermes listen session. "
-                        "You are Qwen 3.8 on Cerebras. One spoken sentence only."
+                    prompt="Greet the listener in one short, clear sentence.",
+                    system_prompt=(
+                        "You are Hermes on a live voice call. One short spoken "
+                        "sentence only. No markdown, lists, or URLs."
                     ),
-                    max_tokens=64,
+                    max_tokens=48,
+                    temperature=0.4,
                     reasoning_effort="none",
                 )
             except Exception:
