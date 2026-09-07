@@ -361,9 +361,15 @@ def list_activities(
     kind: str = KIND_INTERACTIVE,
     active_only: bool = True,
     addr: str | None = None,
+    peer: str | None = None,
 ) -> list[dict[str, Any]]:
     addr = addr or target()
-    req = spb.ListActivitiesRequest(peer=PEER, kind=kind, active_only=active_only, limit=50)
+    req = spb.ListActivitiesRequest(
+        peer=PEER if peer is None else peer,
+        kind=kind,
+        active_only=active_only,
+        limit=50,
+    )
     channel, stub = _stub(addr)
     try:
         resp = stub.ListActivities(req, timeout=RPC_TIMEOUT_S)

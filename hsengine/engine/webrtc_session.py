@@ -215,6 +215,7 @@ class WebRtcHub:
                     max_tokens=48,
                     temperature=0.4,
                     reasoning_effort="none",
+                    tools=False,
                 )
             except Exception:
                 log.exception("cerebras opening line failed")

@@ -33,6 +33,22 @@ def test_enter_requires_cerebras_key(monkeypatch):
     assert interactive.is_active() is False
 
 
+def _client_with_payloads(payloads: list[dict]) -> MagicMock:
+    leftover = list(payloads)
+
+    def _post(*_a, **_k):
+        response = MagicMock()
+        response.json.return_value = leftover.pop(0)
+        response.raise_for_status = MagicMock()
+        return response
+
+    client = MagicMock()
+    client.post.side_effect = _post
+    client.__enter__.return_value = client
+    client.__exit__.return_value = False
+    return client
+
+
 def test_complete_cerebras_posts_qwen38(monkeypatch):
     monkeypatch.setenv("CEREBRAS_API_KEY", "test-key")
     payload = {
@@ -40,22 +56,65 @@ def test_complete_cerebras_posts_qwen38(monkeypatch):
         "choices": [{"message": {"content": "hello", "reasoning": ""}, "finish_reason": "stop"}],
         "usage": {"prompt_tokens": 3, "completion_tokens": 1},
     }
-    response = MagicMock()
-    response.json.return_value = payload
-    response.raise_for_status = MagicMock()
-    client = MagicMock()
-    client.post.return_value = response
-    client.__enter__.return_value = client
-    client.__exit__.return_value = False
+    client = _client_with_payloads([payload])
     with patch("hsengine.engine.interactive.httpx.Client", return_value=client):
         with patch("hsengine.engine.interactive._speak_cerebras"):
-            result = interactive.complete_cerebras(prompt="hi")
+            result = interactive.complete_cerebras(prompt="hi", tools=False)
     assert result.text == "hello"
     assert result.peer == "cerebras"
     assert result.model == "qwen-3.8-27b"
     sent = client.post.call_args
     assert sent.args[0].endswith("/chat/completions")
     assert sent.kwargs["json"]["model"] == "qwen-3.8-27b"
+    assert "tools" not in sent.kwargs["json"]
+
+
+def test_complete_cerebras_checkin_runs_sitrep_then_speaks(monkeypatch):
+    monkeypatch.setenv("CEREBRAS_API_KEY", "test-key")
+    first = {
+        "model": "qwen-3.8-27b",
+        "choices": [
+            {
+                "message": {
+                    "role": "assistant",
+                    "tool_calls": [
+                        {
+                            "id": "c1",
+                            "type": "function",
+                            "function": {"name": "sitrep", "arguments": "{}"},
+                        }
+                    ],
+                },
+                "finish_reason": "tool_calls",
+            }
+        ],
+        "usage": {},
+    }
+    second = {
+        "model": "qwen-3.8-27b",
+        "choices": [
+            {
+                "message": {
+                    "content": "Gaius is up and this session is running.",
+                    "reasoning": "",
+                },
+                "finish_reason": "stop",
+            }
+        ],
+        "usage": {},
+    }
+    client = _client_with_payloads([first, second])
+    with patch("hsengine.engine.interactive.httpx.Client", return_value=client):
+        with patch("hsengine.engine.ops.dispatch", return_value='{"reachable_peers": 2}'):
+            with patch("hsengine.engine.interactive._speak_cerebras"):
+                result = interactive.complete_cerebras(
+                    prompt="how's it going",
+                    tools=True,
+                )
+    assert result.text == "Gaius is up and this session is running."
+    assert client.post.call_count == 2
+    follow = client.post.call_args_list[1].kwargs["json"]["messages"]
+    assert any(m.get("role") == "tool" for m in follow)
 
 
 def test_require_declared_workload_denies_missing_claims():

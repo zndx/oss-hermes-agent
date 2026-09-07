@@ -18,8 +18,14 @@ _CHUNK = 1920  # 80 ms at 24 kHz
 _TURN_QUIET_S = 1.2
 _TURN_MIN_CHARS = 8
 SPOKEN_SYSTEM = (
-    "You are Hermes on a live voice call. Reply in one or two short spoken "
-    "sentences. No markdown, lists, code, or URLs. Plain words only."
+    "You are Hermes on a live voice call. Plain spoken words only — no "
+    "markdown, lists, code, or URLs. For greetings and small talk that is "
+    "not about the systems, one or two short sentences and do not call tools. "
+    "When they ask how things are going, what's happening, whether anything "
+    "is down, a briefing, or any operational check-in — even casually — "
+    "call sitrep first (and list_activities only if you need a closer look), "
+    "then talk about what you found in a few sentences. Do not ask them to "
+    "use special words. Do not invent who is healthy or what is running."
 )
 
 
@@ -99,9 +105,10 @@ class TurnTaker:
                 interactive.complete_cerebras,
                 prompt=text,
                 system_prompt=SPOKEN_SYSTEM,
-                max_tokens=80,
+                max_tokens=280,
                 temperature=0.5,
                 reasoning_effort="none",
+                tools=True,
             )
         except Exception:
             log.exception("cerebras turn failed")

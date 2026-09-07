@@ -15,6 +15,7 @@ horizon if Signals is unreachable).
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import os
 import threading
@@ -76,6 +77,47 @@ def _control_url() -> str:
     return _cfg("hermes.engine.webrtc.interactive.control", "http://127.0.0.1:5081")
 
 
+_TOOL_ROUNDS = 4
+
+
+def _tool_calls_from(msg: dict) -> list[dict]:
+    calls = msg.get("tool_calls")
+    if isinstance(calls, list) and calls:
+        return [c for c in calls if isinstance(c, dict)]
+    fn = msg.get("function_call")
+    if isinstance(fn, dict) and fn.get("name"):
+        return [{"id": "call_0", "type": "function", "function": fn}]
+    return []
+
+
+def _run_tool_calls(calls: list[dict]) -> list[dict]:
+    from hsengine.engine import ops
+
+    out: list[dict] = []
+    for tc in calls:
+        fn = tc.get("function") if isinstance(tc.get("function"), dict) else {}
+        name = str(fn.get("name") or "")
+        raw = fn.get("arguments") or "{}"
+        if isinstance(raw, dict):
+            args = raw
+        else:
+            try:
+                args = json.loads(raw) if raw else {}
+            except json.JSONDecodeError:
+                args = {}
+        if not isinstance(args, dict):
+            args = {}
+        log.info("cerebras tool %s", name)
+        out.append(
+            {
+                "role": "tool",
+                "tool_call_id": str(tc.get("id") or name or "call"),
+                "content": ops.dispatch(name, args),
+            }
+        )
+    return out
+
+
 def complete_cerebras(
     *,
     prompt: str,
@@ -83,42 +125,62 @@ def complete_cerebras(
     max_tokens: int = 4096,
     temperature: float = 0.7,
     reasoning_effort: str | None = None,
+    tools: bool = True,
 ) -> CompleteResult:
     key = _cerebras_key()
     model = _cfg("hermes.engine.webrtc.interactive.cerebras_model", "qwen-3.8-27b")
     base = _cfg("hermes.engine.webrtc.interactive.cerebras_url", "https://api.cerebras.ai/v1").rstrip("/")
     effort = reasoning_effort or _cfg("hermes.engine.webrtc.interactive.reasoning_effort", "low")
-    messages: list[dict[str, str]] = []
+    messages: list[dict] = []
     if system_prompt:
         messages.append({"role": "system", "content": system_prompt})
     messages.append({"role": "user", "content": prompt})
-    body = {
-        "model": model,
-        "messages": messages,
-        "max_tokens": max_tokens,
-        "temperature": temperature,
-        "reasoning_effort": effort,
-    }
+    headers = {"Authorization": f"Bearer {key}", "Content-Type": "application/json"}
+    prompt_tokens = 0
+    completion_tokens = 0
+    text = ""
+    finish = "stop"
+    reasoning = ""
+    data: dict = {}
     with httpx.Client(timeout=120.0) as client:
-        r = client.post(
-            f"{base}/chat/completions",
-            headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
-            json=body,
-        )
-        r.raise_for_status()
-        data = r.json()
-    choice = (data.get("choices") or [{}])[0]
-    msg = choice.get("message") or {}
-    usage = data.get("usage") or {}
-    text = (msg.get("content") or "").strip()
+        for _round in range(_TOOL_ROUNDS if tools else 1):
+            body: dict = {
+                "model": model,
+                "messages": messages,
+                "max_tokens": max_tokens,
+                "temperature": temperature,
+                "reasoning_effort": effort,
+            }
+            if tools:
+                from hsengine.engine.ops import CEREBRAS_TOOLS
+
+                body["tools"] = CEREBRAS_TOOLS
+                body["tool_choice"] = "auto"
+            r = client.post(f"{base}/chat/completions", headers=headers, json=body)
+            r.raise_for_status()
+            data = r.json()
+            choice = (data.get("choices") or [{}])[0]
+            msg = choice.get("message") or {}
+            usage = data.get("usage") or {}
+            prompt_tokens += int(usage.get("prompt_tokens") or 0)
+            completion_tokens += int(usage.get("completion_tokens") or 0)
+            finish = choice.get("finish_reason") or "stop"
+            reasoning = (msg.get("reasoning") or reasoning or "").strip()
+            calls = _tool_calls_from(msg) if tools else []
+            if calls:
+                messages.append(msg)
+                messages.extend(_run_tool_calls(calls))
+                continue
+            text = (msg.get("content") or "").strip()
+            break
     result = CompleteResult(
         text=text,
         model=data.get("model") or model,
-        prompt_tokens=int(usage.get("prompt_tokens") or 0),
-        completion_tokens=int(usage.get("completion_tokens") or 0),
+        prompt_tokens=prompt_tokens,
+        completion_tokens=completion_tokens,
         latency_ms=0.0,
-        reasoning_content=(msg.get("reasoning") or "").strip(),
-        finish_reason=choice.get("finish_reason") or "stop",
+        reasoning_content=reasoning,
+        finish_reason=finish,
         peer="cerebras",
         capability="thinking",
     )

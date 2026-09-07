@@ -59,6 +59,7 @@ def test_cerebras_qwen38_complete_without_kubernetes():
         max_tokens=32,
         temperature=0,
         reasoning_effort="none",
+        tools=False,
     )
     assert result.peer == "cerebras"
     assert result.model == "qwen-3.8-27b"
@@ -93,6 +94,7 @@ def test_interactive_enter_declares_then_starts_moshi():
             max_tokens=16,
             temperature=0,
             reasoning_effort="none",
+            tools=False,
         )
         assert result.peer == "cerebras"
         assert "qwen" in result.model.lower() or result.model == "qwen-3.8-27b"
