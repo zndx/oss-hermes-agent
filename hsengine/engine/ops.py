@@ -163,6 +163,7 @@ def recent_thoughts(*, limit: int = 6, since_hours: int = 24, kind: str = "") ->
     since_ms = int((datetime.now(timezone.utc).timestamp() - hours * 3600) * 1000)
     peers: list[dict[str, Any]] = []
     thoughts: list[dict[str, Any]] = []
+    briefs: list[dict[str, Any]] = []
     for target in _status_targets():
         resp = federation.query_peer(
             target, zpb.SERVER_QUERY_KIND_THOUGHTS, limit=n, since_ms=since_ms, stream=kind or ""
@@ -178,17 +179,28 @@ def recent_thoughts(*, limit: int = 6, since_hours: int = 24, kind: str = "") ->
             if h.newest_ms
             else ""
         )
-        peers.append(
-            {
-                "target": target,
-                "project": h.project or resp.project,
-                "reachable": True,
-                "in_window": int(h.total_in_window),
-                "cycles": int(h.cycles_in_window),
-                "newest": newest,
-                "note": h.note or "",
+        row = {
+            "target": target,
+            "project": h.project or resp.project,
+            "reachable": True,
+            "in_window": int(h.total_in_window),
+            "cycles": int(h.cycles_in_window),
+            "newest": newest,
+            "note": h.note or "",
+        }
+        # The peer's own Thoughts BRIEF (written by its cognition cycle in the
+        # Agenda framing): the ready answer. `spoken` is the voice form.
+        if h.spoken or h.brief:
+            at = datetime.fromtimestamp(int(h.brief_at_ms) / 1000, tz=timezone.utc) if h.brief_at_ms else None
+            row["brief"] = {
+                "spoken": h.spoken or "",
+                "written": h.brief or "",
+                "when": at.strftime("%Y-%m-%d %H:%MZ") if at else "",
+                "age_min": int((datetime.now(timezone.utc) - at).total_seconds() // 60) if at else None,
+                "thoughts_considered": int(h.brief_thoughts),
             }
-        )
+            briefs.append({"project": row["project"], **row["brief"]})
+        peers.append(row)
         thoughts.extend(_brief_thought(h.project or resp.project, t) for t in h.thoughts)
     thoughts.sort(key=lambda t: t.get("when") or "", reverse=True)
     return {
@@ -196,6 +208,7 @@ def recent_thoughts(*, limit: int = 6, since_hours: int = 24, kind: str = "") ->
         "when": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%MZ"),
         "window_hours": hours,
         "kind": kind or "all",
+        "briefs": briefs,
         "count": len(thoughts[:n]),
         "thoughts": thoughts[:n],
         "peers": peers,
@@ -250,15 +263,17 @@ CEREBRAS_TOOLS: list[dict[str, Any]] = [
         "function": {
             "name": "recent_thoughts",
             "description": (
-                "What you have been thinking about lately: the newest thoughts "
-                "the federation's cognition has persisted — patterns, connections, "
-                "questions, reflections — with when each was thought and what it "
-                "draws on. Call this whenever they ask what's on your mind, what "
-                "you've been thinking, any new ideas, insights or connections, or "
-                "what the research has turned up — casual phrasing counts. Speak "
-                "about the thoughts in your own words and say roughly when they "
-                "were thought; if the note says cognition is idle or the store is "
-                "empty, say that plainly."
+                "What you have been thinking about lately. Returns each peer's "
+                "Thoughts BRIEF — a short first-person summary its cognition wrote "
+                "at the end of its last cycle (briefs[].spoken is already in plain "
+                "speech) — plus the newest individual thoughts (patterns, "
+                "connections, questions) with when each was thought. Call this "
+                "whenever they ask what's on your mind, what you've been thinking, "
+                "any new ideas, insights or connections, or what the research has "
+                "turned up — casual phrasing counts. Speak the brief in your own "
+                "words first; use the individual thoughts only for follow-ups. If "
+                "there is no brief or the note says cognition is idle, say that "
+                "plainly."
             ),
             "parameters": {
                 "type": "object",

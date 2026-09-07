@@ -94,6 +94,10 @@ def test_dispatch_sitrep_returns_json(monkeypatch):
 
 # ── recent_thoughts: "what have you been thinking about?" over the protocol ──
 
+def peers_have_brief(out):
+    return any(p.get("brief", {}).get("written") for p in out["peers"])
+
+
 def test_recent_thoughts_merges_peer_hints_newest_first(monkeypatch):
     import time
     from concurrent import futures
@@ -103,6 +107,8 @@ def test_recent_thoughts_merges_peer_hints_newest_first(monkeypatch):
     from hsengine.engine import ops
     from hsengine.engine.generated.zndx.engine.v1 import engine_pb2 as zpb
     from hsengine.engine.generated.zndx.engine.v1 import engine_pb2_grpc as zpb_grpc
+
+    now_ms_ref = [int(time.time() * 1000)]
 
     class FakeEngine(zpb_grpc.EngineServicer):
         def __init__(self, project, thoughts, note=""):
@@ -123,10 +129,16 @@ def test_recent_thoughts_merges_peer_hints_newest_first(monkeypatch):
                                                   summary=f"{title} — summary", domains=["biorxiv"], salience=0.5))
                 if self.thoughts:
                     h.newest_ms = max(a for _, a in self.thoughts)
+                if getattr(self, 'brief', ''):
+                    h.brief = self.brief
+                    h.spoken = self.brief + ' (spoken)'
+                    h.brief_at_ms = now_ms_ref[0] - 120_000
+                    h.brief_thoughts = 7
             return resp
 
-    now_ms = int(time.time() * 1000)
+    now_ms = now_ms_ref[0]
     gaius = FakeEngine("gaius", [("older", now_ms - 3_600_000), ("newest", now_ms - 60_000)])
+    gaius.brief = "Lately I have been thinking about state as a control plane."
     silent = FakeEngine("aegir", [])  # no cognition unit: empty hint → honest silence
     servers, targets = [], []
     for fake in (gaius, silent):
@@ -142,6 +154,9 @@ def test_recent_thoughts_merges_peer_hints_newest_first(monkeypatch):
         for srv in servers:
             srv.stop(0)
     assert out["ok"] and out["count"] == 2
+    assert out["briefs"][0]["project"] == "gaius" and out["briefs"][0]["spoken"].endswith("(spoken)")
+    assert out["briefs"][0]["thoughts_considered"] == 7 and 1 <= out["briefs"][0]["age_min"] <= 3
+    assert peers_have_brief(out)
     assert [t["title"] for t in out["thoughts"]] == ["newest", "older"]
     assert out["thoughts"][0]["project"] == "gaius" and out["thoughts"][0]["kind"] == "connection"
     peers = {p.get("target"): p for p in out["peers"]}

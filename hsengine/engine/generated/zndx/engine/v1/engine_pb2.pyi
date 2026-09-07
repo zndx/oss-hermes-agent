@@ -554,7 +554,7 @@ class Thought(_message.Message):
     def __init__(self, id: _Optional[str] = ..., at_ms: _Optional[int] = ..., kind: _Optional[str] = ..., title: _Optional[str] = ..., summary: _Optional[str] = ..., excerpt: _Optional[str] = ..., domains: _Optional[_Iterable[str]] = ..., salience: _Optional[float] = ..., chain_id: _Optional[str] = ..., generation: _Optional[int] = ..., note_path: _Optional[str] = ..., profile: _Optional[str] = ..., model: _Optional[str] = ...) -> None: ...
 
 class ThoughtsHint(_message.Message):
-    __slots__ = ("project", "thoughts", "total_in_window", "newest_ms", "window_ms", "cycles_in_window", "note")
+    __slots__ = ("project", "thoughts", "total_in_window", "newest_ms", "window_ms", "cycles_in_window", "note", "brief", "spoken", "brief_at_ms", "brief_id", "brief_thoughts")
     PROJECT_FIELD_NUMBER: _ClassVar[int]
     THOUGHTS_FIELD_NUMBER: _ClassVar[int]
     TOTAL_IN_WINDOW_FIELD_NUMBER: _ClassVar[int]
@@ -562,6 +562,11 @@ class ThoughtsHint(_message.Message):
     WINDOW_MS_FIELD_NUMBER: _ClassVar[int]
     CYCLES_IN_WINDOW_FIELD_NUMBER: _ClassVar[int]
     NOTE_FIELD_NUMBER: _ClassVar[int]
+    BRIEF_FIELD_NUMBER: _ClassVar[int]
+    SPOKEN_FIELD_NUMBER: _ClassVar[int]
+    BRIEF_AT_MS_FIELD_NUMBER: _ClassVar[int]
+    BRIEF_ID_FIELD_NUMBER: _ClassVar[int]
+    BRIEF_THOUGHTS_FIELD_NUMBER: _ClassVar[int]
     project: str
     thoughts: _containers.RepeatedCompositeFieldContainer[Thought]
     total_in_window: int
@@ -569,7 +574,12 @@ class ThoughtsHint(_message.Message):
     window_ms: int
     cycles_in_window: int
     note: str
-    def __init__(self, project: _Optional[str] = ..., thoughts: _Optional[_Iterable[_Union[Thought, _Mapping]]] = ..., total_in_window: _Optional[int] = ..., newest_ms: _Optional[int] = ..., window_ms: _Optional[int] = ..., cycles_in_window: _Optional[int] = ..., note: _Optional[str] = ...) -> None: ...
+    brief: str
+    spoken: str
+    brief_at_ms: int
+    brief_id: str
+    brief_thoughts: int
+    def __init__(self, project: _Optional[str] = ..., thoughts: _Optional[_Iterable[_Union[Thought, _Mapping]]] = ..., total_in_window: _Optional[int] = ..., newest_ms: _Optional[int] = ..., window_ms: _Optional[int] = ..., cycles_in_window: _Optional[int] = ..., note: _Optional[str] = ..., brief: _Optional[str] = ..., spoken: _Optional[str] = ..., brief_at_ms: _Optional[int] = ..., brief_id: _Optional[str] = ..., brief_thoughts: _Optional[int] = ...) -> None: ...
 
 class ActivityClaim(_message.Message):
     __slots__ = ("leaf", "gpu")
