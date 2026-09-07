@@ -205,18 +205,32 @@ class SpeechBoard:
         return chunk
 
 
-def _planar_stereo(mono: Any, n: int) -> Any:
+def s16_stereo_frame(mono: Any, n: int, *, sample_rate: int, pts: int, time_base: Any) -> Any:
+    """Packed s16 stereo — aiortc OpusEncoder asserts format s16 (not fltp)."""
     import numpy as np
+    import av
+    from fractions import Fraction
 
     fitted = _fit(_as_float_mono(mono), n)
-    return np.stack([fitted, fitted], axis=0).astype(np.float32)
+    pcm = np.clip(fitted * 32767.0, -32768, 32767).astype(np.int16)
+    packed = np.column_stack([pcm, pcm])  # (n, 2)
+    try:
+        out = av.AudioFrame.from_ndarray(packed, format="s16", layout="stereo")
+    except ValueError:
+        interleaved = np.empty((1, n * 2), dtype=np.int16)
+        interleaved[0, 0::2] = pcm
+        interleaved[0, 1::2] = pcm
+        out = av.AudioFrame.from_ndarray(interleaved, format="s16", layout="stereo")
+    out.sample_rate = sample_rate
+    out.pts = pts
+    out.time_base = time_base if time_base is not None else Fraction(1, sample_rate)
+    return out
 
 
 def apply_mix_frame(frame: Any, board: SpeechBoard, gate: SoundtrackGate | None = None) -> Any:
     """Return a new audio frame with speech mixed over the clip, or the original."""
     try:
         import numpy as np
-        import av
         from fractions import Fraction
     except Exception:
         return frame
@@ -228,17 +242,16 @@ def apply_mix_frame(frame: Any, board: SpeechBoard, gate: SoundtrackGate | None 
         rate = int(getattr(frame, "sample_rate", 0) or CANON_RATE)
         speech = board.pull(n, rate)
         if speech is None and (gate is None or gate.clip_live()):
-            return frame
+            # Keep the original only if it is already s16 (OpusEncoder asserts that).
+            fmt = getattr(getattr(frame, "format", None), "name", None)
+            if fmt == "s16":
+                return frame
+            speech = np.zeros(n, dtype=np.float32)
         if speech is None:
-            planar = np.zeros((2, n), dtype=np.float32)
-        else:
-            planar = _planar_stereo(speech, n)
-        out = av.AudioFrame.from_ndarray(planar, format="fltp", layout="stereo")
-        out.pts = frame.pts
+            speech = np.zeros(n, dtype=np.float32)
         tb = getattr(frame, "time_base", None)
-        out.time_base = tb if tb is not None else Fraction(1, rate)
-        out.sample_rate = rate
-        return out
+        pts = int(getattr(frame, "pts", 0) or 0)
+        return s16_stereo_frame(speech, n, sample_rate=rate, pts=pts, time_base=tb)
     except Exception:
         log.warning("audio mix failed", exc_info=True)
         return frame
@@ -262,7 +275,6 @@ def _silence_track(sample_rate: int = CANON_RATE, frame_samples: int = 960) -> A
         async def recv(self):
             if self.readyState != "live":
                 raise MediaStreamError
-            import av
             import numpy as np
 
             if self._t0 is None:
@@ -272,13 +284,13 @@ def _silence_track(sample_rate: int = CANON_RATE, frame_samples: int = 960) -> A
                 wait = due - time.monotonic()
                 if wait > 0:
                     await asyncio.sleep(wait)
-            from fractions import Fraction
-
-            arr = np.zeros((2, self._n), dtype=np.float32)
-            frame = av.AudioFrame.from_ndarray(arr, format="fltp", layout="stereo")
-            frame.sample_rate = self._rate
-            frame.pts = self._pts
-            frame.time_base = Fraction(1, self._rate)
+            frame = s16_stereo_frame(
+                np.zeros(self._n, dtype=np.float32),
+                self._n,
+                sample_rate=self._rate,
+                pts=self._pts,
+                time_base=None,
+            )
             self._pts += self._n
             return frame
 

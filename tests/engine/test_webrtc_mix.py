@@ -125,7 +125,8 @@ def test_apply_mix_frame_puts_speech_on_silence():
     board = SpeechBoard()
     board.push(np.ones(960, dtype=np.float32) * 0.4, sample_rate=48000)
     out = apply_mix_frame(frame, board)
-    assert float(np.max(np.abs(out.to_ndarray()))) > 0.1
+    assert out.format.name == "s16"
+    assert int(np.max(np.abs(out.to_ndarray()))) > 1000
 
 
 def test_apply_mix_frame_does_not_keep_clip_after_gate():
@@ -143,4 +144,5 @@ def test_apply_mix_frame_does_not_keep_clip_after_gate():
     gate = SoundtrackGate(has_video=True)
     gate.on_track_eof("video")
     out = apply_mix_frame(frame, SpeechBoard(), gate)
-    assert float(np.max(np.abs(out.to_ndarray()))) < 1e-6
+    assert out.format.name == "s16"
+    assert int(np.max(np.abs(out.to_ndarray()))) == 0
