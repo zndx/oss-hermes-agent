@@ -159,6 +159,9 @@ class WebRtcHub:
         from hsengine.engine.webrtc_stt import follow_audio, stt_available
 
         await interactive.enter_async(owner=f"webrtc:{session_id}")
+        from hsengine.engine import session_history
+
+        session_history.open_session(session_id)
         try:
             board = CaptionBoard()
             loop = asyncio.get_running_loop()
@@ -195,7 +198,7 @@ class WebRtcHub:
             log.info("webrtc %s inbound %s", session_id, track.kind)
             if track.kind != "audio" or not captions:
                 return
-            task = loop.create_task(follow_audio(track, board))
+            task = loop.create_task(follow_audio(track, board, session_id=session_id))
             self._tasks.setdefault(session_id, []).append(task)
 
         await pc.setRemoteDescription(RTCSessionDescription(sdp=sdp, type=typ or "offer"))
@@ -205,7 +208,7 @@ class WebRtcHub:
 
         async def _opening() -> None:
             try:
-                await asyncio.to_thread(
+                result = await asyncio.to_thread(
                     interactive.complete_cerebras,
                     prompt="Greet the listener in one short, clear sentence.",
                     system_prompt=(
@@ -216,6 +219,11 @@ class WebRtcHub:
                     temperature=0.4,
                     reasoning_effort="none",
                     tools=False,
+                )
+                from hsengine.engine import session_history
+
+                session_history.record_turn(
+                    session_id, assistant=result.text, model=result.model
                 )
             except Exception:
                 log.exception("cerebras opening line failed")
@@ -254,6 +262,9 @@ class WebRtcHub:
             await pc.close()  # type: ignore[union-attr]
         except Exception:
             log.debug("webrtc close %s", session_id, exc_info=True)
+        from hsengine.engine import session_history
+
+        session_history.close_session(session_id)
         if not self._pcs:
             from hsengine.engine import interactive
 

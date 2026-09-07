@@ -81,9 +81,16 @@ def utterance_ready(words: list[str], *, min_chars: int = _TURN_MIN_CHARS) -> st
 class TurnTaker:
     """Flush a user utterance after a quiet gap, then Cerebras → TTS."""
 
-    def __init__(self, loop: asyncio.AbstractEventLoop, quiet_s: float = _TURN_QUIET_S) -> None:
+    def __init__(
+        self,
+        loop: asyncio.AbstractEventLoop,
+        quiet_s: float = _TURN_QUIET_S,
+        *,
+        session_id: str = "",
+    ) -> None:
         self._loop = loop
         self._quiet_s = quiet_s
+        self._session_id = session_id
         self._words: list[str] = []
         self._gen = 0
         self._task: asyncio.Task | None = None
@@ -111,9 +118,10 @@ class TurnTaker:
         self._busy = True
         try:
             log.info("user utterance %r", text)
-            from hsengine.engine import interactive
+            from hsengine.engine import interactive, session_history
 
-            await asyncio.to_thread(
+            session_history.record_turn(self._session_id, user=text)
+            result = await asyncio.to_thread(
                 interactive.complete_cerebras,
                 prompt=text,
                 system_prompt=SPOKEN_SYSTEM,
@@ -121,6 +129,9 @@ class TurnTaker:
                 temperature=0.5,
                 reasoning_effort="none",
                 tools=True,
+            )
+            session_history.record_turn(
+                self._session_id, assistant=result.text, model=result.model
             )
         except Exception:
             log.exception("cerebras turn failed")
@@ -159,14 +170,14 @@ def frame_to_mono24k(frame: Any) -> Any:
     return frame_to_mono(frame, rate=_MOSHI_RATE)
 
 
-async def follow_audio(track: Any, board: Any) -> None:
+async def follow_audio(track: Any, board: Any, *, session_id: str = "") -> None:
     """Drain inbound WebRTC audio into moshi-server ASR."""
     import msgpack
     import numpy as np
     import websockets
 
     captioner = MoshiCaptioner(board)
-    turns = TurnTaker(asyncio.get_running_loop())
+    turns = TurnTaker(asyncio.get_running_loop(), session_id=session_id)
     url = moshi_url()
     if "auth_id=" not in url:
         sep = "&" if "?" in url else "?"

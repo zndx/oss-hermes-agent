@@ -29,6 +29,7 @@ KNOWN_SOURCES = frozenset({
     "cli", "telegram", "discord", "slack", "whatsapp", "signal", "matrix",
     "irc", "email", "x", "twitter", "api", "gateway", "web", "dashboard",
     "tool", "subagent", "cron", "recovered", "imported", "acp",
+    "agent-rtc",
 })
 
 # Historical sessions layouts. Columns are only ever appended, so an older record is a strict prefix.
