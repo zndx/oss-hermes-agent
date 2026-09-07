@@ -59,7 +59,7 @@ text_bos_token = 1
 [modules.tts_py.py]
 log_folder = "./logs"
 voice_folder = "hf-snapshot://kyutai/tts-voices/**/*.safetensors"
-default_voice = "alba-mackenna/casual.wav"
+default_voice = "unmute-prod-website/p329_022.wav"
 cfg_coef = 2.0
 cfg_is_no_text = true
 padding_between = 1

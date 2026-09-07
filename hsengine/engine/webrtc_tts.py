@@ -38,7 +38,7 @@ def tts_key() -> str:
 def tts_voice() -> str:
     return _cfg_str(
         "hermes.engine.webrtc.tts.voice",
-        "alba-mackenna/casual.wav",
+        "unmute-prod-website/p329_022.wav",
     )
 
 
