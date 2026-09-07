@@ -32,9 +32,32 @@ CEREBRAS_CLASS = "external.token-metered"
 LEASE_DIR = Path(os.environ.get("ZNDX_GPU_LEASE_DIR", "/tmp/zndx-gpu-leases"))
 
 
+def parse_gpu_rows(csv_text: str) -> list[int]:
+    """Return GPU indices sorted by memory used (emptiest first)."""
+    rows: list[tuple[int, int]] = []
+    for line in csv_text.splitlines():
+        bits = [b.strip() for b in line.replace(" MiB", "").split(",")]
+        if len(bits) < 1 or not bits[0].isdigit():
+            continue
+        idx = int(bits[0])
+        used = 0
+        if len(bits) >= 2:
+            try:
+                used = int(float(bits[1]))
+            except ValueError:
+                used = 0
+        rows.append((used, idx))
+    rows.sort()
+    return [idx for _used, idx in rows]
+
+
 def _gpu_indices() -> list[int]:
     proc = subprocess.run(
-        ["nvidia-smi", "--query-gpu=index", "--format=csv,noheader"],
+        [
+            "nvidia-smi",
+            "--query-gpu=index,memory.used",
+            "--format=csv,noheader,nounits",
+        ],
         capture_output=True,
         text=True,
         timeout=10,
@@ -42,7 +65,10 @@ def _gpu_indices() -> list[int]:
     )
     if proc.returncode != 0:
         raise RuntimeError("nvidia-smi failed — agent-rtc needs a GPU")
-    return [int(line.strip()) for line in proc.stdout.splitlines() if line.strip().isdigit()]
+    found = parse_gpu_rows(proc.stdout)
+    if not found:
+        raise RuntimeError("nvidia-smi returned no GPUs")
+    return found
 
 
 def _live_lease_gpus() -> set[int]:

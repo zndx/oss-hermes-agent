@@ -32,13 +32,35 @@ MOSHI_PORT = int(os.environ.get("MOSHI_STT_PORT", "5080"))
 ROOT = Path(__file__).resolve().parents[2]
 STATE = ROOT / ".devenv" / "state" / "moshi"
 PID_FILE = STATE / "moshi-stt.pid"
+_WRAP = ROOT / ".devenv" / "profile" / "bin" / "moshi-server"
+_CARGO = Path.home() / ".cargo" / "bin" / "moshi-server"
+
+
+def _ld_library_path(torch_lib: Path | None) -> str:
+    """Same layout as the devenv moshi-server wrap: nvidia + CUDA + Nix libs + torch."""
+    nvidia = ROOT / ".devenv" / "nvidia-libs"
+    parts = [str(nvidia), "/usr/local/cuda/lib64"]
+    wrap = _WRAP.resolve() if _WRAP.exists() else _WRAP
+    try:
+        for line in wrap.read_text().splitlines():
+            stripped = line.strip()
+            if stripped.startswith("libs="):
+                raw = stripped.split("=", 1)[1].strip().strip('"')
+                if raw:
+                    parts.append(raw)
+                break
+    except OSError:
+        pass
+    if torch_lib is not None and torch_lib.is_dir():
+        parts.append(str(torch_lib))
+    return ":".join(parts)
 
 _mu = threading.Lock()
 _worker: subprocess.Popen | None = None
 
 
 def _moshi_env(gpu: int) -> dict[str, str]:
-    """CUDA_VISIBLE_DEVICES + Kyutai TTS (Py) site-packages. Wrap owns libc."""
+    """CUDA_VISIBLE_DEVICES + CUDA/Nix/torch libs. Do not rely on the wrap alone."""
     env = os.environ.copy()
     profile_bin = ROOT / ".devenv" / "profile" / "bin"
     cargo_bin = Path.home() / ".cargo" / "bin"
@@ -47,12 +69,20 @@ def _moshi_env(gpu: int) -> dict[str, str]:
     env["CUDA_VISIBLE_DEVICES"] = str(gpu)
     env["HF_HOME"] = env.get("HF_HOME", "/raid/cache/huggingface")
     tts_site = ROOT / ".devenv" / "state" / "tts-venv" / "lib" / "python3.11" / "site-packages"
+    torch_lib = tts_site / "torch" / "lib" if tts_site.is_dir() else None
     if tts_site.is_dir():
         env["PYTHONPATH"] = f"{tts_site}{os.pathsep}{env.get('PYTHONPATH', '')}".rstrip(os.pathsep)
-        torch_lib = tts_site / "torch" / "lib"
-        if torch_lib.is_dir():
-            env["MOSHI_EXTRA_LIBS"] = str(torch_lib)
+    env["LD_LIBRARY_PATH"] = _ld_library_path(torch_lib if torch_lib and torch_lib.is_dir() else None)
+    env["MOSHI_EXTRA_LIBS"] = env["LD_LIBRARY_PATH"]
     return env
+
+
+def _moshi_binary() -> str:
+    if _WRAP.is_file():
+        return str(_WRAP)
+    if _CARGO.is_file():
+        return str(_CARGO)
+    raise RuntimeError("moshi-server not on PATH (need devenv wrap or ~/.cargo/bin)")
 
 
 def activate() -> dict:
@@ -60,20 +90,23 @@ def activate() -> dict:
     with _mu:
         if _worker is not None and _worker.poll() is None and moshi_serving(port=MOSHI_PORT):
             return {"ok": True, "moshi": True, "already": True}
-        binary = shutil_which("moshi-server")
-        if not binary:
-            raise RuntimeError("moshi-server not on PATH")
+        if _worker is not None and _worker.poll() is not None:
+            _worker = None
+            release_gpu_lease()
+        binary = _moshi_binary()
         gpu = lease_one_gpu(os.getpid())
         STATE.mkdir(parents=True, exist_ok=True)
         (STATE / "static").mkdir(exist_ok=True)
         (STATE / "logs").mkdir(exist_ok=True)
         config = os.environ.get("MOSHI_STT_CONFIG", str(ROOT / "hsengine/moshi/stt-1b.toml"))
         log_path = STATE / "logs" / "moshi-server.log"
-        log_f = open(log_path, "ab")
+        env = _moshi_env(gpu)
+        log.info("starting moshi-server binary=%s gpu=%s ld=%s", binary, gpu, env.get("LD_LIBRARY_PATH", "")[:180])
+        log_f = open(log_path, "ab", buffering=0)
         _worker = subprocess.Popen(
             [binary, "worker", "--config", config, "--port", str(MOSHI_PORT)],
             cwd=str(STATE),
-            env=_moshi_env(gpu),
+            env=env,
             stdout=log_f,
             stderr=log_f,
         )
@@ -81,18 +114,19 @@ def activate() -> dict:
         deadline = time.monotonic() + 300
         while time.monotonic() < deadline:
             if _worker.poll() is not None:
-                raise RuntimeError(f"moshi-server exited {_worker.returncode}")
+                tail = ""
+                try:
+                    tail = log_path.read_text(errors="replace")[-1500:]
+                except OSError:
+                    tail = ""
+                raise RuntimeError(
+                    f"moshi-server exited {_worker.returncode} binary={binary} gpu={gpu}\n{tail}"
+                )
             if moshi_serving(port=MOSHI_PORT):
                 log.info("moshi-server listening on :%s gpu=%s (stt+tts)", MOSHI_PORT, gpu)
                 return {"ok": True, "moshi": True, "gpu": gpu, "tts": True}
             time.sleep(0.4)
         raise RuntimeError("moshi-server did not listen on :5080")
-
-
-def shutil_which(name: str) -> str | None:
-    import shutil
-
-    return shutil.which(name)
 
 
 def deactivate() -> dict:
