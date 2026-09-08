@@ -53,6 +53,12 @@ Caddy local CA): Let's Encrypt via Cloudflare DNS-01 — `scripts/hermes-acme.sh
 then restart Caddy. Cloudflare's own cert still covers a proxied :443 if
 you add one later; :9120 presents the LE cert. LAN names stay `tls internal`.
 
+ACME account keys and certs live in `.devenv/state/lego/` (mode 0700). Back
+them up to Proton Drive with rclone (`protondrive`, not an official Linux GUI
+yet): `rclone config` once (remote name `proton`), then
+`systemctl --user enable --now hermes-acme-backup.timer`. Units live in
+`scripts/systemd/`. Destination: `proton:tinybox/acme-lego/`.
+
 ## Origins
 
 | Origin | Secure? |

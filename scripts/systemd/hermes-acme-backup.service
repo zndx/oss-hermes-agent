@@ -1,0 +1,9 @@
+[Unit]
+Description=Backup Hermes ACME (lego) account and certificates to Proton Drive
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=%h/local/src/oss/hermes-agent/scripts/hermes-acme-backup.sh
+Nice=10

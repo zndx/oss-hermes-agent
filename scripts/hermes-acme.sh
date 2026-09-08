@@ -79,3 +79,6 @@ if [[ ! -f "$CRT" || ! -f "$KEY" ]]; then
   exit 1
 fi
 echo "hermes-acme: public cert ready. Restart Caddy so devenv re-evals tls files." >&2
+if [[ -x "$ROOT/scripts/hermes-acme-backup.sh" ]] && command -v rclone >/dev/null 2>&1; then
+  "$ROOT/scripts/hermes-acme-backup.sh" || echo "hermes-acme: Proton Drive backup skipped (configure rclone remote proton)." >&2
+fi
