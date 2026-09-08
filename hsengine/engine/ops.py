@@ -379,10 +379,14 @@ def glance_spoken(d: dict[str, Any] | None) -> str:
     """Plain-speech glance for a silence cue. Empty if the buffer was silent."""
     if not d or not d.get("ok"):
         return ""
-    for part in str(d.get("note") or "").split("; "):
-        text = part.split(": ", 1)[-1].strip() if ": " in part else part.strip()
-        if text and "empty" not in text.lower():
-            return text
+    note = str(d.get("note") or "").strip()
+    payload = note
+    if ": " in note:
+        prefix, rest = note.split(": ", 1)
+        if prefix and " " not in prefix and rest:
+            payload = rest.strip()
+    if payload and "empty" not in payload.lower():
+        return payload
     lines: list[str] = []
     by: dict[str, list[dict[str, Any]]] = {}
     for hit in d.get("hits") or []:

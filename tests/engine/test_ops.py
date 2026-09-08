@@ -64,6 +64,7 @@ def test_glance_spoken_uses_buffer_note():
         }
     )
     assert "Attending" in text and "HN:" in text
+    assert "Show HN" in text and "SLB" in text
     assert ops.glance_spoken({"ok": True, "note": "gaius: dual cognition buffer empty", "hits": []}) == ""
     assert ops.glance_spoken({"ok": False}) == ""
 
