@@ -11,7 +11,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 STATE="${DEVENV_STATE:-$ROOT/.devenv/state}"
 LEGO="${HERMES_LEGO_PATH:-$STATE/lego}"
-REMOTE="${HERMES_ACME_BACKUP_REMOTE:-proton:tinybox/acme-lego}"
+REMOTE="${HERMES_ACME_BACKUP_REMOTE:-proton:archive/tinybox/acme-lego}"
 RCLONE="${RCLONE:-rclone}"
 
 if [[ ! -d "$LEGO/accounts" || ! -d "$LEGO/certificates" ]]; then
