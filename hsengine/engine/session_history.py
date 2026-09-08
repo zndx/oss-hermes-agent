@@ -103,6 +103,33 @@ def record_turn(
         log.warning("agent-rtc history record failed", exc_info=True)
 
 
+def recent_turns(webrtc_id: str, *, limit: int = 16) -> list[dict[str, str]]:
+    """Last turns on this Connect, chronological, clipped for a tool payload."""
+    if not webrtc_id:
+        return []
+    db = _store()
+    if db is None:
+        return []
+    try:
+        n = max(1, min(int(limit or 16), 24))
+        rows = db.get_messages(hermes_session_id(webrtc_id), latest=True, limit=n)
+    except Exception:
+        log.warning("agent-rtc history read failed", exc_info=True)
+        return []
+    out: list[dict[str, str]] = []
+    for m in rows or []:
+        role = str(m.get("role") or "")
+        if role not in ("user", "assistant"):
+            continue
+        text = str(m.get("content") or "").strip()
+        if not text:
+            continue
+        if len(text) > 800:
+            text = text[:799].rstrip() + "…"
+        out.append({"role": role, "text": text})
+    return out
+
+
 def close_session(webrtc_id: str, reason: str = "hangup") -> None:
     if not webrtc_id:
         return

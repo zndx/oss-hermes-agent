@@ -65,8 +65,9 @@ def director_prompts(user_idle_s: float) -> tuple[str, str, int, bool]:
     if phase == "nudge":
         system = (
             "You are Hermes in an AgentRTC pause. Plain spoken words only. "
-            "Call narrative to see which slide this minute belongs to, then "
-            "offer one small thread from that place. Two sentences, then stop. "
+            "Call conversation to recover what we already said and which slide "
+            "this minute belongs to, then offer one small thread from that "
+            "place. Two sentences, then stop. "
             "Do not web-search. Do not greet. Do not mention the silence."
         )
         prompt = f"A {idle}s pause. Check narrative, one small thread. Stop."
@@ -74,7 +75,7 @@ def director_prompts(user_idle_s: float) -> tuple[str, str, int, bool]:
     if phase == "adjacent":
         system = (
             "You are Hermes in a lengthening AgentRTC pause. Plain spoken "
-            "words only. Call narrative first. You may kb_search or web_search "
+            "words only. Call conversation first. You may kb_search or web_search "
             "once for something adjacent. Then 2–4 sentences from that place. "
             "Stop. Do not greet. Do not mention the silence."
         )
@@ -82,7 +83,8 @@ def director_prompts(user_idle_s: float) -> tuple[str, str, int, bool]:
         return system, prompt, 160, True
     system = (
         "You are Hermes in a long AgentRTC silence. Plain spoken words only. "
-        "Call narrative first so you know where the running story is. "
+        "Call conversation first so you know what we already said and where "
+        "the running story is. "
         "Then actively explore a novel domain in the parlance of our time: "
         "Hacker News front page, markets/FMP watchlist, or a surprising "
         "adjacent idea. Call web_search and/or kb_search. Then speak a few sentences "

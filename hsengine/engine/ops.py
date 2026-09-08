@@ -367,6 +367,48 @@ def narrative(*, at_minute: float | None = None) -> dict[str, Any]:
     return HUB.narrative_checkin(at_minute=at_minute)
 
 
+def conversation(*, limit: int = 16) -> dict[str, Any]:
+    """This call's recent turns plus the time-aligned narrative place."""
+    from hsengine.engine import session_history
+    from hsengine.engine.webrtc_session import HUB
+
+    if not getattr(HUB, "_pcs", None):
+        return {"ok": False, "error": "no live AgentRTC session"}
+    sid = next(iter(HUB._pcs))
+    try:
+        n = max(1, min(int(limit or 16), 24))
+    except (TypeError, ValueError):
+        n = 16
+    turns = session_history.recent_turns(sid, limit=n)
+    place = HUB.narrative_checkin()
+    story = {
+        k: place.get(k)
+        for k in (
+            "elapsed_min",
+            "slide",
+            "slides",
+            "title",
+            "body",
+            "notes",
+            "previous",
+            "next",
+            "session",
+            "note",
+        )
+        if k in place
+    }
+    body = str(story.get("body") or "")
+    if len(body) > 1200:
+        story["body"] = body[:1199].rstrip() + "…"
+    return {
+        "ok": True,
+        "session_id": sid,
+        "turns": turns,
+        "count": len(turns),
+        "narrative": story,
+    }
+
+
 CEREBRAS_TOOLS: list[dict[str, Any]] = [
     {
         "type": "function",
@@ -475,6 +517,28 @@ CEREBRAS_TOOLS: list[dict[str, Any]] = [
     {
         "type": "function",
         "function": {
+            "name": "conversation",
+            "description": (
+                "This call's own context: what we have already said, plus "
+                "where the running story is at this minute. Call after a "
+                "pause, interruption, or whenever you need continuity — "
+                "do not guess what was said earlier. Casual phrasing counts."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "limit": {
+                        "type": "integer",
+                        "description": "How many recent turns to include (default 16).",
+                    }
+                },
+                "additionalProperties": False,
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
             "name": "narrative",
             "description": (
                 "Check in with the running session story. The pointer moves "
@@ -564,6 +628,13 @@ def dispatch(name: str, args: dict[str, Any] | None = None) -> str:
         )
     if name == "agenda":
         return json.dumps(agenda(item_id=str(args.get("item_id") or "")), default=str)
+    if name == "conversation":
+        raw = args.get("limit")
+        try:
+            lim = int(raw) if raw not in (None, "") else 16
+        except (TypeError, ValueError):
+            lim = 16
+        return json.dumps(conversation(limit=lim), default=str)
     if name == "narrative":
         raw = args.get("at_minute")
         minute = None

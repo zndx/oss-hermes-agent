@@ -59,7 +59,18 @@ def test_spoken_system_mentions_kb_and_web_search():
     text = SPOKEN_SYSTEM.lower()
     assert "kb_search" in text
     assert "web_search" in text
-    assert "narrative" in text
+    assert "conversation" in text
+
+
+def test_dispatch_conversation(monkeypatch):
+    monkeypatch.setattr(
+        ops,
+        "conversation",
+        lambda **k: {"ok": True, "count": 2, "turns": [{"role": "user", "text": "hi"}]},
+    )
+    data = json.loads(ops.dispatch("conversation", {}))
+    assert data["count"] == 2
+    assert data["turns"][0]["role"] == "user"
 
 
 def test_dispatch_narrative(monkeypatch):

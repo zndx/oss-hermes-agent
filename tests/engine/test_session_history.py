@@ -28,6 +28,9 @@ def test_open_record_close_roundtrip(tmp_path):
         assert roles == ["user", "assistant"]
         assert texts[0] == "how's it going"
         assert "Discover" in texts[1]
+        recent = session_history.recent_turns("deadbeefcafe", limit=8)
+        assert [t["role"] for t in recent] == ["user", "assistant"]
+        assert recent[0]["text"] == "how's it going"
     finally:
         session_history.configure(None)
         db.close()
