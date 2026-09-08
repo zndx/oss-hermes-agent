@@ -135,3 +135,12 @@ def test_require_declared_workload_denies_external_local_gpu():
     ]
     with pytest.raises(RuntimeError, match="must not claim local GPUs"):
         interactive._require_declared_workload({"state": "running", "claims": claims})
+
+
+def test_require_declared_workload_allows_token_metered_and_compute_at_gpu_zero():
+    claims = [
+        {"leaf": "root.internal.inference.agent-rtc", "gpu": 1},
+        {"leaf": "root.external.token-metered", "gpu": 0},
+        {"leaf": "root.internal.compute", "gpu": 0},
+    ]
+    interactive._require_declared_workload({"state": "running", "claims": claims})

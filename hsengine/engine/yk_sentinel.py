@@ -27,6 +27,23 @@ GPU_TOKENS = 1
 CEREBRAS_WORKLOAD_ID = "hermes-cerebras-thinking"
 CEREBRAS_QUEUE = "root.external.token-metered"
 CEREBRAS_CLASS = "external.token-metered"
+COMPUTE_QUEUE = "root.internal.compute"
+COMPUTE_CLASS = "internal.compute"
+
+
+def interactive_yk_claims() -> list[tuple[str, int]]:
+    """YK leaves the interactive session occupies while its Activity RUNS.
+
+    agent-rtc GPU 1 — moshi STT/TTS on the high-end token.
+    token-metered GPU 0 — Cerebras dialog (apps, no local GPU).
+    compute GPU 0 — CPU search / Qdrant (no GPU at this scale).
+    Heavy thinking (GPUs 0–3) is Gaius's standing claim and is not ceded.
+    """
+    return [
+        (QUEUE, GPU_TOKENS),
+        (CEREBRAS_QUEUE, 0),
+        (COMPUTE_QUEUE, 0),
+    ]
 LEASE_DIR = Path(os.environ.get("ZNDX_GPU_LEASE_DIR", "/tmp/zndx-gpu-leases"))
 DEFAULT_TOTAL_GPUS = 6  # lab tinybox; same as advertise_federation_gpu.sh
 

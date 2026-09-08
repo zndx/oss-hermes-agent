@@ -1,16 +1,15 @@
-"""WebRTC interactive posture: agent-rtc + Cerebras thinking.
+"""WebRTC interactive posture: agent-rtc + Cerebras dialog.
 
 Enter on the first RTC session, leave on the last hangup. No silent
-fallback to local Qwen thinking or tiny.en.
+fallback to local Qwen for the spoken turn.
 
 The posture is DECLARED to the federation as a coordination Activity
 (kind ``interactive_session``) through this engine → Signals → Airflow.
 Claims on that Activity ARE the YuniKorn configuration; Signals applies
-them. This process never talks to Kubernetes. Postures are what peers
-honour (gaius cedes its thinking uptime while the activity runs). A
-session that cannot be declared is denied. Leaving releases the activity;
-peers restore their own desired sets from the release (or from the
-horizon if Signals is unreachable).
+them. This process never talks to Kubernetes. Dialog is Cerebras
+(token-metered); moshi takes the agent-rtc GPU; CPU search sits on
+compute. Gaius thinking on heavy is not ceded. A session that cannot be
+declared is denied. Leaving releases the activity.
 """
 from __future__ import annotations
 
@@ -243,9 +242,10 @@ def _moshi_off() -> None:
 def _require_declared_workload(activity: dict) -> None:
     """Signals must echo the agent-rtc GPU claim and leave the Activity in force.
 
-    Those claims are the local YuniKorn configuration; Signals applies them.
-    Cerebras thinking is remote token-metered and must not appear as a GPU
-    floor. Missing claims or a non-in-force state means Connect is denied.
+    Those claims are the YuniKorn configuration; Signals applies them.
+    Cerebras dialog and CPU search are gpu=0 leaves (token-metered / compute)
+    and must not appear as a local GPU floor. Missing agent-rtc or a
+    non-in-force state means Connect is denied.
     """
     claims = {
         (str(c.get("leaf") or ""), int(c.get("gpu") or 0))
@@ -300,7 +300,7 @@ def enter(owner: str = "webrtc") -> None:
         _active = True
         _lease = lease
     log.info(
-        "agent-rtc interactive posture on (activity %s declared to the federation; peers cede per postures)",
+        "agent-rtc interactive posture on (activity %s declared; YK claims asserted while RUNNING)",
         lease.activity_id,
     )
 

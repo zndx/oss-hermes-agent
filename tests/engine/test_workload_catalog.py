@@ -18,7 +18,12 @@ from hsengine.engine import coordination, s2s, workload_catalog as wc
 from hsengine.engine.generated.zndx.engine.v1 import engine_pb2 as zpb
 from hsengine.engine.generated.zndx.scheduler.v1 import scheduler_pb2 as spb
 from hsengine.engine.generated.zndx.scheduler.v1 import scheduler_pb2_grpc as spb_grpc
-from hsengine.engine.yk_sentinel import CEREBRAS_QUEUE, QUEUE as AGENT_RTC_QUEUE
+from hsengine.engine.yk_sentinel import (
+    CEREBRAS_QUEUE,
+    COMPUTE_QUEUE,
+    QUEUE as AGENT_RTC_QUEUE,
+    interactive_yk_claims,
+)
 
 
 class FakeScheduler(spb_grpc.SchedulerServicer):
@@ -96,10 +101,12 @@ def test_catalogue_is_the_interactive_workflow_declared_by_the_engine():
     assert e.horizon_s == coordination.interactive_horizon_s() == 3600
     assert e.timezone == "UTC"
     assert "agent-rtc" in e.description and "only while a session runs" in e.description
-    assert [(c.leaf, c.gpu) for c in e.claims] == [(AGENT_RTC_QUEUE, 1)]
-    assert all(c.gpu == 1 for c in e.claims)
-    assert CEREBRAS_QUEUE not in [c.leaf for c in e.claims]
-    assert dict(e.postures) == coordination.interactive_postures() == {"gaius.endpoint.thinking": "hold-uptime"}
+    assert [(c.leaf, c.gpu) for c in e.claims] == list(interactive_yk_claims())
+    assert (AGENT_RTC_QUEUE, 1) in [(c.leaf, c.gpu) for c in e.claims]
+    assert (CEREBRAS_QUEUE, 0) in [(c.leaf, c.gpu) for c in e.claims]
+    assert (COMPUTE_QUEUE, 0) in [(c.leaf, c.gpu) for c in e.claims]
+    assert all(c.gpu == 0 for c in e.claims if c.leaf != AGENT_RTC_QUEUE)
+    assert dict(e.postures) == coordination.interactive_postures() == {}
     assert list(e.precludes) == coordination.interactive_precludes() == []
 
 
@@ -110,8 +117,8 @@ def test_catalogue_claims_match_what_declare_interactive_puts_on_the_activity(si
     assert lease is not None
     declared = [(c.leaf, c.gpu) for c in signals.declares[0].claims]
     catalogued = [(c.leaf, c.gpu) for c in wc.interactive_entry().claims]
-    assert declared == catalogued == [(AGENT_RTC_QUEUE, 1)]
-    assert dict(signals.declares[0].postures) == dict(wc.interactive_entry().postures)
+    assert declared == catalogued == list(interactive_yk_claims())
+    assert dict(signals.declares[0].postures) == dict(wc.interactive_entry().postures) == {}
 
 
 def test_server_query_schedules_serves_the_catalogue():
@@ -120,7 +127,7 @@ def test_server_query_schedules_serves_the_catalogue():
     assert [(s.id, s.kind, s.source, s.runner) for s in resp.schedules] == [
         ("interactive.agent_rtc", "interactive_session", "engine", "interactive")
     ]
-    assert [(c.leaf, c.gpu) for c in resp.schedules[0].claims] == [(AGENT_RTC_QUEUE, 1)]
+    assert [(c.leaf, c.gpu) for c in resp.schedules[0].claims] == list(interactive_yk_claims())
     # other kinds do not carry schedules
     assert list(s2s.local_response(zpb.SERVER_QUERY_KIND_ACTIVITIES).schedules) == []
 

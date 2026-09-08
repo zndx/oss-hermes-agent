@@ -13,7 +13,14 @@ def test_agent_rtc_queue_uses_the_requested_leaf():
     assert yk.RESOURCE_CLASS == "internal.inference.agent-rtc"
     assert yk.WORKLOAD_ID == "hermes-agent-rtc"
     assert yk.CEREBRAS_QUEUE == "root.external.token-metered"
+    assert yk.COMPUTE_QUEUE == "root.internal.compute"
     assert yk.GPU_TOKENS == 1
+    assert yk.interactive_yk_claims() == [
+        (yk.QUEUE, 1),
+        (yk.CEREBRAS_QUEUE, 0),
+        (yk.COMPUTE_QUEUE, 0),
+    ]
+    assert sum(gpu for _, gpu in yk.interactive_yk_claims()) == 1
 
 
 def test_pick_agent_rtc_gpu_is_the_high_end_token():

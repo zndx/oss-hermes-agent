@@ -22,7 +22,7 @@ from hsengine.engine.generated.zndx.scheduler.v1 import scheduler_pb2_grpc as sp
 from hsengine.engine.generated.zndx.supervision.v1 import supervision_pb2 as sv
 from hsengine.engine.supervision_bus import KIND_ACTIVITY, SupervisionEvent, get_bus, init_bus
 from hsengine.engine.supervision_servicer import event_to_proto
-from hsengine.engine.yk_sentinel import QUEUE as AGENT_RTC_QUEUE
+from hsengine.engine.yk_sentinel import QUEUE as AGENT_RTC_QUEUE, interactive_yk_claims
 
 
 # ── fake Signals scheduler ────────────────────────────────────────────────────
@@ -151,15 +151,15 @@ def test_declare_interactive_request_shape(signals):
     assert req.kind == "interactive_session"
     assert req.owner == "webrtc:abc123"
     assert uuid.UUID(req.request_id).version == 7
-    assert [(c.leaf, c.gpu) for c in req.claims] == [(AGENT_RTC_QUEUE, 1)]
-    assert dict(req.postures) == {"gaius.endpoint.thinking": "hold-uptime"}
+    assert [(c.leaf, c.gpu) for c in req.claims] == list(interactive_yk_claims())
+    assert dict(req.postures) == {}
     assert list(req.precludes) == []
     assert "interactive" in req.reason
     assert before + 1799 * 10**9 < req.horizon_ns <= time.time_ns() + 1800 * 10**9
     assert lease.activity["state"] == "running"
     assert lease.activity["run_id"].endswith("-1")
     assert lease.horizon_s == 1800
-    assert [(c["leaf"], c["gpu"]) for c in lease.activity["claims"]] == [(AGENT_RTC_QUEUE, 1)]
+    assert [(c["leaf"], c["gpu"]) for c in lease.activity["claims"]] == list(interactive_yk_claims())
 
 
 def test_renew_moves_the_horizon_forward_and_release_carries_outcome(signals):
@@ -232,7 +232,7 @@ def test_declare_publishes_activity_event_on_bus(signals):
     assert ev.kind == KIND_ACTIVITY
     assert ev.payload["transition"] == "declared"
     assert ev.payload["activity_kind"] == "interactive_session"
-    assert ev.payload["postures"] == {"gaius.endpoint.thinking": "hold-uptime"}
+    assert ev.payload["postures"] == {}
     assert ev.payload["ceded"] == []
 
 
@@ -457,6 +457,6 @@ def test_disconnected_view_drops_in_force_entries_past_horizon():
 def test_config_defaults_for_the_activity():
     assert coordination.interactive_horizon_s() == 3600
     assert coordination.interactive_precludes() == []
-    assert coordination.interactive_postures() == {"gaius.endpoint.thinking": "hold-uptime"}
+    assert coordination.interactive_postures() == {}
     assert coordination.target().endswith(":50551")
     assert coordination.watch_enabled() is True

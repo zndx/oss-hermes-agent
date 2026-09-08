@@ -12,8 +12,9 @@ scheduled — this engine declares it at session start
 (``coordination.declare_interactive`` → ``Scheduler/DeclareActivity``) — so it is
 catalogued with ``source = "engine"``: Signals lists it for federation
 visibility, materialises no DAG for it, and the arbiter asserts its claims
-(agent-rtc GPU 1 for moshi) only while a session's Activity RUNS. Cerebras
-thinking is a remote token-metered API — it is not a local GPU claim.
+only while a session's Activity RUNS: moshi on agent-rtc (GPU 1), Cerebras
+dialog on token-metered (GPU 0), CPU search/Qdrant on compute (GPU 0).
+Gaius thinking on heavy is not claimed and not ceded.
 
 Two hops, never one: this ENGINE submits to the Signals engine; local processes
 read the catalogue from this engine (``Engine/ServerQuery kind=SCHEDULES``).
@@ -30,7 +31,7 @@ import grpc
 from hsengine.engine import coordination
 from hsengine.engine.generated.zndx.engine.v1 import engine_pb2 as zpb
 from hsengine.engine.generated.zndx.scheduler.v1 import scheduler_pb2 as spb
-from hsengine.engine.yk_sentinel import QUEUE as AGENT_RTC_QUEUE
+from hsengine.engine.yk_sentinel import interactive_yk_claims
 
 log = logging.getLogger("hsengine.engine.workload_catalog")
 
@@ -40,9 +41,9 @@ CATALOG_ID = "interactive.agent_rtc"
 RUNNER_INTERACTIVE = "interactive"
 SOURCE_ENGINE = "engine"
 DESCRIPTION = (
-    "agent-rtc interactive WebRTC session (moshi on 1 local GPU; "
-    "Cerebras Qwen 3.8-27B remote token-metered); "
-    "floor asserted only while a session runs"
+    "agent-rtc interactive WebRTC: moshi 1 local GPU; Cerebras dialog "
+    "token-metered; CPU search/Qdrant on compute; Gaius thinking stays up. "
+    "Floors asserted only while a session runs"
 )
 
 SYNC_INTERVAL_S = 1800.0          # re-submit the catalogue every 30 min
@@ -56,10 +57,10 @@ def interactive_claims() -> list[zpb.ActivityClaim]:
     """The interactive session's YuniKorn configuration — the same claims
     ``coordination.declare_interactive`` puts on the Activity.
 
-    Local GPU only (moshi / Kyutai STT). ``root.external.token-metered`` is
-    the Cerebras API and must not appear here as a GPU claim.
+    See ``yk_sentinel.interactive_yk_claims``: moshi GPU 1, Cerebras and
+    CPU search at GPU 0 so Signals/Airflow see the full interactive split.
     """
-    return [zpb.ActivityClaim(leaf=AGENT_RTC_QUEUE, gpu=1)]
+    return [zpb.ActivityClaim(leaf=leaf, gpu=int(gpu)) for leaf, gpu in interactive_yk_claims()]
 
 
 def interactive_entry() -> zpb.ScheduleHint:

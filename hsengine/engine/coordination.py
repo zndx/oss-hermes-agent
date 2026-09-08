@@ -29,7 +29,6 @@ from hsengine.engine.generated.zndx.engine.v1 import engine_pb2 as zpb
 from hsengine.engine.generated.zndx.scheduler.v1 import scheduler_pb2 as spb
 from hsengine.engine.generated.zndx.scheduler.v1 import scheduler_pb2_grpc as spb_grpc
 from hsengine.engine.supervision_bus import get_bus
-from hsengine.engine.yk_sentinel import QUEUE as AGENT_RTC_QUEUE
 
 log = logging.getLogger("hsengine.engine.coordination")
 
@@ -115,9 +114,10 @@ def interactive_precludes() -> list[str]:
 
 
 def interactive_postures() -> dict[str, str]:
+    # Empty: Gaius thinking (heavy TP=4) stays up while Cerebras does dialog.
     raw = _cfg(
         "hermes.engine.webrtc.interactive.activity_postures",
-        ["gaius.endpoint.thinking=hold-uptime"],
+        [],
     )
     out: dict[str, str] = {}
     for item in list(raw or []):
@@ -428,11 +428,16 @@ def declare_interactive(
     *,
     precludes: list[str] | None = None,
     postures: dict[str, str] | None = None,
-    reason: str = "agent-rtc interactive session (moshi local GPU; Cerebras Qwen 3.8-27B remote)",
+    reason: str = (
+        "agent-rtc interactive session (moshi 1 GPU; Cerebras dialog "
+        "token-metered; CPU search; Gaius thinking stays up)"
+    ),
     addr: str | None = None,
 ) -> ActivityLease:
     """Declare the interactive session to Signals. Fail-fast: raises with
     #HS.COORD.00000001.DECLAREFAIL when the activity cannot be declared."""
+    from hsengine.engine.yk_sentinel import interactive_yk_claims
+
     addr = addr or target()
     h = int(horizon_s or interactive_horizon_s())
     release_stale_interactive(addr=addr)
@@ -445,9 +450,8 @@ def declare_interactive(
         precludes=list(interactive_precludes() if precludes is None else precludes),
         reason=reason,
     )
-    # Local GPU only: Kyutai STT on agent-rtc. Cerebras thinking is
-    # root.external.token-metered — remote pay-per-token API, no local GPU.
-    req.claims.append(zpb.ActivityClaim(leaf=AGENT_RTC_QUEUE, gpu=1))
+    for leaf, gpu in interactive_yk_claims():
+        req.claims.append(zpb.ActivityClaim(leaf=leaf, gpu=int(gpu)))
     for k, v in (interactive_postures() if postures is None else postures).items():
         req.postures[k] = v
     channel, stub = _stub(addr)
