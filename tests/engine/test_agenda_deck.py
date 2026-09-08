@@ -34,7 +34,21 @@ def test_opening_uses_full_deck_when_present():
     assert max_tokens > 48
 
 
-def test_opening_without_deck_stays_a_short_greeting():
+def test_opening_without_deck_uses_public_lede():
+    prompt, system, max_tokens = opening_prompt(
+        {
+            "title": "Discover coherence check-in",
+            "public": "Would you send a colleague to this screen today?",
+            "deck": "",
+        }
+    )
+    assert "Discover coherence check-in" in prompt
+    assert "colleague" in prompt
+    assert "Greet the listener" not in prompt
+    assert max_tokens > 48
+
+
+def test_opening_without_material_stays_a_short_greeting():
     prompt, system, max_tokens = opening_prompt({})
     assert "Greet the listener" in prompt
     assert max_tokens == 48

@@ -54,28 +54,41 @@ def load_agenda_session(agenda_id: str) -> dict[str, str]:
     return {}
 
 
-def opening_prompt(session: dict[str, str]) -> tuple[str, str, int]:
+def opening_prompt(session: dict[str, str], *, agenda_id: str = "") -> tuple[str, str, int]:
     """(user prompt, system prompt, max_tokens) for the Connect opening."""
     title = session.get("title") or "this session"
     deck = session.get("deck") or ""
     public = session.get("public") or ""
-    if deck:
+    material = deck or public
+    if material:
         system = (
             "You are Hermes leading an AgentRTC session. Plain spoken words only "
-            "— no markdown, HTML comments, lists as markup, code, or file paths. "
-            "The presenterm deck is your presentation guide and reference: slides, "
-            "speaker notes, and wiki links. Lead with a short opening from the "
-            "first slide (a few sentences, about a minute). Speaker notes are for "
-            "you, not the audience, unless they ask to go deeper. If they go "
-            "off-script, answer, then resume from a slide heading so the narrative "
-            "continues. Do not invent facts that are not in the deck or tools."
+            "— no markdown, HTML comments, lists as markup, code, file paths, "
+            "or operator paste (BEGIN SESSION). "
+            "Lead with a short opening (a few sentences, about a minute) from "
+            "the session material. If a presenterm deck is present, start at the "
+            "first slide; speaker notes are for you, not the audience, unless "
+            "they ask to go deeper. If they go off-script, answer, then resume "
+            "from a slide heading. Do not invent facts that are not in the "
+            "material or tools."
         )
-        prompt = (
-            f"Open the session titled {title}.\n\n"
-            f"Public description:\n{public}\n\n"
-            f"Presenterm deck (full guide):\n{deck}"
-        )
+        prompt = f"Open the session titled {title}.\n\nSession material:\n{material}"
+        if public and deck:
+            prompt = (
+                f"Open the session titled {title}.\n\n"
+                f"Public description:\n{public}\n\n"
+                f"Presenterm deck (full guide):\n{deck}"
+            )
         return prompt, system, 220
+    if agenda_id:
+        system = (
+            "You are Hermes leading an AgentRTC session. Plain spoken words only. "
+            "The session is tied to an Agenda item whose body could not be loaded. "
+            "Say you are here for that session and invite them to begin. "
+            "Do not invent the agenda contents."
+        )
+        prompt = f"Open AgentRTC for agenda item {agenda_id}. You do not have the body yet."
+        return prompt, system, 80
     system = (
         "You are Hermes on a live voice call. One short spoken sentence only. "
         "No markdown, lists, or URLs."

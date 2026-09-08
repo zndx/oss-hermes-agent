@@ -163,8 +163,10 @@ class WebRtcHub:
         from hsengine.engine import session_history
 
         session_history.open_session(session_id)
-        if (agenda_id or "").strip():
-            self._agenda[session_id] = agenda_id.strip()
+        aid = (agenda_id or "").strip()
+        if aid:
+            self._agenda[session_id] = aid
+        log.info("webrtc offer session=%s agenda_id=%s", session_id, aid or "-")
         try:
             board = CaptionBoard()
             loop = asyncio.get_running_loop()
@@ -214,8 +216,17 @@ class WebRtcHub:
                 from hsengine.engine.agenda_deck import load_agenda_session, opening_prompt
 
                 aid = self._agenda.get(session_id, "")
-                session = load_agenda_session(aid) if aid else {}
-                prompt, system, max_tokens = opening_prompt(session)
+                session = {}
+                if aid:
+                    session = await asyncio.to_thread(load_agenda_session, aid)
+                    log.info(
+                        "webrtc opening agenda_id=%s title=%s deck=%s public=%s",
+                        aid,
+                        session.get("title") or "-",
+                        "yes" if session.get("deck") else "no",
+                        "yes" if session.get("public") else "no",
+                    )
+                prompt, system, max_tokens = opening_prompt(session, agenda_id=aid)
                 result = await asyncio.to_thread(
                     interactive.complete_cerebras,
                     prompt=prompt,
