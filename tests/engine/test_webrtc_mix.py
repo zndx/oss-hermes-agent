@@ -4,6 +4,7 @@ from __future__ import annotations
 import numpy as np
 
 from hsengine.engine.webrtc_mix import (
+    BOARD_SECONDS,
     SoundtrackGate,
     SpeechBoard,
     audio_frame_samples,
@@ -67,6 +68,13 @@ def test_board_pull_none_when_empty():
     assert board.pull(16, 48000) is None
 
 
+def test_board_default_holds_five_minutes_of_speech():
+    """A 2-minute ring clipped long thoughts/agenda turns; 5 minutes is the floor."""
+    board = SpeechBoard()
+    assert BOARD_SECONDS >= 300
+    assert board.max_samples >= 48000 * 300
+
+
 def test_board_keeps_the_start_of_a_long_utterance():
     """A thoughts briefing is longer than the old 30s ring; popping left skipped the first sentence."""
     board = SpeechBoard()
@@ -76,6 +84,15 @@ def test_board_keeps_the_start_of_a_long_utterance():
     first = board.pull(4800, 48000)
     assert first is not None
     assert abs(float(first[0]) - 0.1) < 0.02
+
+
+def test_board_overflow_drops_the_oldest_samples():
+    board = SpeechBoard(max_seconds=1)
+    board.push(np.linspace(0.1, 0.2, 48000, dtype=np.float32), sample_rate=48000)
+    board.push(np.linspace(0.8, 0.9, 48000, dtype=np.float32), sample_rate=48000)
+    first = board.pull(4800, 48000)
+    assert first is not None
+    assert float(first[0]) > 0.5
 
 
 def test_board_24k_speech_keeps_wall_clock_at_48k():

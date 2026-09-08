@@ -15,9 +15,9 @@ from typing import Any
 log = logging.getLogger("hsengine.engine.webrtc.mix")
 
 CANON_RATE = 48000
-# Thoughts/agenda spoken can run past 30s. A ring that pops left ate the
-# start of the utterance ("jumps in mid-sentence").
-_MAX_SAMPLES = CANON_RATE * 120
+# Thoughts/agenda spoken can run past two minutes. A ring that pops left
+# ate the start of the utterance ("jumps in mid-sentence").
+BOARD_SECONDS = 300
 _SPEECH_FLOOR = 1e-4  # below this, treat as silence → clip plays
 
 
@@ -161,8 +161,11 @@ def mix_pcm(clip: Any, speech: Any | None, n_samples: int | None = None) -> Any:
 class SpeechBoard:
     """Serialized PCM from every agent source. One outbound voice later (TTS)."""
 
-    def __init__(self, sample_rate: int = CANON_RATE) -> None:
+    def __init__(
+        self, sample_rate: int = CANON_RATE, *, max_seconds: float = BOARD_SECONDS
+    ) -> None:
         self.sample_rate = int(sample_rate)
+        self.max_samples = int(self.sample_rate * max(1.0, float(max_seconds)))
         self._lock = threading.Lock()
         self._buf: deque[float] = deque()
 
@@ -177,7 +180,7 @@ class SpeechBoard:
             return
         with self._lock:
             self._buf.extend(float(x) for x in mono.tolist())
-            overflow = len(self._buf) - _MAX_SAMPLES
+            overflow = len(self._buf) - self.max_samples
             if overflow > 0:
                 for _ in range(overflow):
                     self._buf.popleft()
