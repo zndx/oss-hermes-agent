@@ -29,7 +29,7 @@ def test_opening_uses_full_deck_when_present():
     )
     assert "Watchlist after the tape" in prompt
     assert "Would you change the book" in prompt
-    assert "presentation guide" in system
+    assert "first slide" in system
     assert "off-script" in system
     assert max_tokens > 48
 
