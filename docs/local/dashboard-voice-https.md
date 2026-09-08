@@ -57,8 +57,10 @@ ACME account keys and certs live in `.devenv/state/lego/` (mode 0700). Back
 them up to Proton Drive with rclone (`protondrive`, not an official Linux GUI
 yet): `rclone config` once (remote name `proton`), then
 `systemctl --user enable --now hermes-acme-backup.timer`. Units live in
-`scripts/systemd/`. Destination: `proton:archive/tinybox/acme-lego/`
-(your Drive already has `archive/` / `current/` / `scratch/`).
+`scripts/systemd/`. Destination is quarter- and realm-aware:
+`proton:archive/YYYYQn/<realm>/<box>/acme-lego/`
+(e.g. `proton:archive/2026Q3/vista/tinybox/acme-lego`). Override with
+`HERMES_ACME_BACKUP_REMOTE`, `HERMES_BACKUP_REALM`, `HERMES_BACKUP_BOX`.
 
 ## Origins
 

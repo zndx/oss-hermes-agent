@@ -11,8 +11,39 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 STATE="${DEVENV_STATE:-$ROOT/.devenv/state}"
 LEGO="${HERMES_LEGO_PATH:-$STATE/lego}"
-REMOTE="${HERMES_ACME_BACKUP_REMOTE:-proton:archive/tinybox/acme-lego}"
 RCLONE="${RCLONE:-rclone}"
+
+utc_quarter() {
+  local y m
+  y="$(date -u +%Y)"
+  m="$(date -u +%-m)"
+  echo "${y}Q$(( (m - 1) / 3 + 1 ))"
+}
+
+# tinybox.dev.vista.zndx.org → box=tinybox realm=vista
+# tinybox.vista.zndx.org     → box=tinybox realm=vista
+box_realm_from_fqdn() {
+  local host="${HERMES_TLS_DOMAIN:-${HERMES_ADVERTISE_HOST:-tinybox.dev.vista.zndx.org}}"
+  host="${host%%:*}"
+  local IFS=.
+  # shellcheck disable=SC2206
+  local p=($host)
+  local n=${#p[@]}
+  BOX="${HERMES_BACKUP_BOX:-${p[0]:-tinybox}}"
+  if [[ -n "${HERMES_BACKUP_REALM:-}" ]]; then
+    REALM="$HERMES_BACKUP_REALM"
+  elif (( n >= 5 )); then
+    REALM="${p[2]}"
+  elif (( n >= 4 )); then
+    REALM="${p[1]}"
+  else
+    REALM="vista"
+  fi
+}
+
+box_realm_from_fqdn
+DEFAULT_REMOTE="proton:archive/$(utc_quarter)/${REALM}/${BOX}/acme-lego"
+REMOTE="${HERMES_ACME_BACKUP_REMOTE:-$DEFAULT_REMOTE}"
 
 if [[ ! -d "$LEGO/accounts" || ! -d "$LEGO/certificates" ]]; then
   echo "hermes-acme-backup: no lego tree at $LEGO" >&2
