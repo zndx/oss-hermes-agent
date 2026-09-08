@@ -308,20 +308,27 @@ def agenda(*, item_id: str = "") -> dict[str, Any]:
     return out
 
 
+_BUFFER_STREAMS = frozenset({"hn", "fmp", "buffer"})
+
+
 def search(*, query: str, stream: str = "all", limit: int = 6) -> dict[str, Any]:
-    """KB and/or web hits via ServerQuery SEARCH (two hops to Gaius)."""
+    """KB and/or web hits via ServerQuery SEARCH (two hops to Gaius).
+
+    ``stream=buffer|hn|fmp`` is the dual-cognition glance (AST upper buffer
+    plus live HN/FMP entropy). Those streams allow an empty query.
+    """
     from hsengine.engine import federation
     from hsengine.engine.generated.zndx.engine.v1 import engine_pb2 as zpb
 
     q = " ".join((query or "").split())
     kind = (stream or "all").strip().lower() or "all"
-    if kind not in ("kb", "web", "all"):
+    if kind not in ("kb", "web", "all") | _BUFFER_STREAMS:
         kind = "all"
     try:
         n = max(1, min(int(limit or 6), 8))
     except (TypeError, ValueError):
         n = 6
-    if not q:
+    if not q and kind not in _BUFFER_STREAMS:
         return {"ok": False, "error": "empty query", "hits": []}
     peers: list[dict[str, Any]] = []
     hits: list[dict[str, Any]] = []
@@ -358,6 +365,44 @@ def search(*, query: str, stream: str = "all", limit: int = 6) -> dict[str, Any]
         "peers": peers,
         "note": "; ".join(notes),
     }
+
+
+def cognition_glance(*, stream: str = "buffer", limit: int = 6) -> dict[str, Any]:
+    """Succinct dual-cognition buffer: AST upper buffer + HN/FMP entropy."""
+    kind = (stream or "buffer").strip().lower() or "buffer"
+    if kind not in _BUFFER_STREAMS:
+        kind = "buffer"
+    return search(query="", stream=kind, limit=limit)
+
+
+def glance_spoken(d: dict[str, Any] | None) -> str:
+    """Plain-speech glance for a silence cue. Empty if the buffer was silent."""
+    if not d or not d.get("ok"):
+        return ""
+    for part in str(d.get("note") or "").split("; "):
+        text = part.split(": ", 1)[-1].strip() if ": " in part else part.strip()
+        if text and "empty" not in text.lower():
+            return text
+    lines: list[str] = []
+    by: dict[str, list[dict[str, Any]]] = {}
+    for hit in d.get("hits") or []:
+        if isinstance(hit, dict):
+            by.setdefault(str(hit.get("source") or "other"), []).append(hit)
+    if by.get("attention"):
+        bits = [
+            f"{h.get('title')}: {h.get('snippet')}"
+            for h in by["attention"][:4]
+            if h.get("snippet")
+        ]
+        if bits:
+            lines.append("Attending " + "; ".join(bits))
+    if by.get("hn"):
+        bits = [str(h.get("title") or h.get("snippet") or "") for h in by["hn"][:4]]
+        lines.append("HN: " + "; ".join(b for b in bits if b))
+    if by.get("fmp"):
+        bits = [str(h.get("title") or h.get("snippet") or "") for h in by["fmp"][:4]]
+        lines.append("FMP: " + "; ".join(b for b in bits if b))
+    return " ".join(lines)
 
 
 def narrative(*, at_minute: float | None = None) -> dict[str, Any]:

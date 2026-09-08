@@ -41,6 +41,16 @@ def test_three_minutes_is_novel_and_hotter():
     assert max_tokens >= 200
 
 
+def test_novel_silence_speaks_from_cognition_glance():
+    glance = "Attending ADMIT prospects fmp: SLB 10-K. HN: Show HN: aperture. FMP: SLB"
+    system, prompt, max_tokens, tools = director_prompts(180.0, glance=glance)
+    assert tools is True
+    assert "attention-schema" in system.lower() or "upper buffer" in system.lower()
+    assert "Cognition glance" in prompt
+    assert "Show HN: aperture" in prompt
+    assert "web-search unless" in system.lower() or "Do not web-search" in system
+
+
 def test_should_fire_respects_busy_and_speaking():
     from hsengine.engine.webrtc_silence import SilenceDirector
 
@@ -77,3 +87,55 @@ def test_should_fire_respects_busy_and_speaking():
 
     d._turns = QuietTurns()
     assert d.should_fire() is True
+
+
+def test_novel_cue_fetches_cognition_glance(monkeypatch):
+    import asyncio
+
+    from hsengine.engine import ops
+    from hsengine.engine.webrtc_silence import SilenceDirector
+
+    seen = {"glance": 0}
+
+    def _glance(**_k):
+        seen["glance"] += 1
+        return {
+            "ok": True,
+            "note": "gaius: HN: Show HN: aperture. FMP: SLB",
+            "hits": [{"source": "hn", "title": "Show HN: aperture", "snippet": "membrane"}],
+        }
+
+    class Turns:
+        busy = False
+        last_user_at = 0.0
+        claimed = False
+
+        def try_claim(self):
+            self.claimed = True
+            return True
+
+        def release(self):
+            self.claimed = False
+
+    class Speech:
+        def speaking(self):
+            return False
+
+    monkeypatch.setattr(ops, "cognition_glance", _glance)
+    monkeypatch.setattr(
+        "hsengine.engine.interactive.complete_cerebras",
+        lambda **k: type("R", (), {"text": "ok", "model": "x"})(),
+    )
+    monkeypatch.setattr("hsengine.engine.session_history.record_turn", lambda *a, **k: None)
+
+    d = SilenceDirector(
+        loop=None,  # type: ignore[arg-type]
+        session_id="x",
+        turns=Turns(),
+        speech=Speech(),
+        rng=lambda: 0.0,
+        now=lambda: 200.0,
+    )
+    d._quiet_since = 0.0
+    asyncio.run(d._cue())
+    assert seen["glance"] == 1

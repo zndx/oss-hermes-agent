@@ -58,10 +58,13 @@ def exploration_phase(user_idle_s: float) -> str:
     return "novel"
 
 
-def director_prompts(user_idle_s: float) -> tuple[str, str, int, bool]:
+def director_prompts(
+    user_idle_s: float, glance: str = ""
+) -> tuple[str, str, int, bool]:
     """system, user prompt, max_tokens, tools."""
     phase = exploration_phase(user_idle_s)
     idle = int(user_idle_s)
+    glance = " ".join((glance or "").split())
     if phase == "nudge":
         system = (
             "You are Hermes in an AgentRTC pause. Plain spoken words only. "
@@ -81,6 +84,22 @@ def director_prompts(user_idle_s: float) -> tuple[str, str, int, bool]:
         )
         prompt = f"A {idle}s pause. Narrative, then adjacent if useful. Stop."
         return system, prompt, 160, True
+    if glance:
+        system = (
+            "You are Hermes in a long AgentRTC silence. Plain spoken words only. "
+            "Call conversation first so you know what we already said and where "
+            "the running story is. "
+            "You already have a succinct dual-cognition glance: the "
+            "attention-schema upper buffer plus live Hacker News and FMP "
+            "entropy. Speak a few sentences that start a novel thread from "
+            "that novelty. Do not web-search unless the glance is empty. "
+            "Stop. Do not greet. Do not apologize for the pause."
+        )
+        prompt = (
+            f"A {idle}s silence.\n\nCognition glance:\n{glance}\n\n"
+            "Speak from this. Stop."
+        )
+        return system, prompt, 220, True
     system = (
         "You are Hermes in a long AgentRTC silence. Plain spoken words only. "
         "Call conversation first so you know what we already said and where "
@@ -178,13 +197,22 @@ class SilenceDirector:
                 return
             self._turns._busy = True
         idle = self._user_idle()
-        system, prompt, max_tokens, tools = director_prompts(idle)
+        glance = ""
+        if exploration_phase(idle) == "novel":
+            try:
+                from hsengine.engine import ops
+
+                glance = ops.glance_spoken(ops.cognition_glance())
+            except Exception:
+                log.warning("cognition glance failed", exc_info=True)
+        system, prompt, max_tokens, tools = director_prompts(idle, glance=glance)
         self._last_cue = self._now()
         log.info(
-            "silence cue session=%s idle=%.0fs phase=%s tools=%s",
+            "silence cue session=%s idle=%.0fs phase=%s glance=%s tools=%s",
             self._session_id,
             idle,
             exploration_phase(idle),
+            "yes" if glance else "no",
             tools,
         )
         try:

@@ -55,6 +55,19 @@ def test_dispatch_kb_and_web_search(monkeypatch):
     assert seen == [("theta cycle", "kb"), ("intel 18A", "web")]
 
 
+def test_glance_spoken_uses_buffer_note():
+    text = ops.glance_spoken(
+        {
+            "ok": True,
+            "note": "gaius: Attending ADMIT prospects fmp: SLB. HN: Show HN. FMP: SLB",
+            "hits": [],
+        }
+    )
+    assert "Attending" in text and "HN:" in text
+    assert ops.glance_spoken({"ok": True, "note": "gaius: dual cognition buffer empty", "hits": []}) == ""
+    assert ops.glance_spoken({"ok": False}) == ""
+
+
 def test_spoken_system_mentions_kb_and_web_search():
     text = SPOKEN_SYSTEM.lower()
     assert "kb_search" in text
