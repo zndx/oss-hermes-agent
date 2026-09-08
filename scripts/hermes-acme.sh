@@ -6,9 +6,12 @@
 # own cert; this file is what Caddy presents on :9120 to browsers
 # (calendar join, getUserMedia) — including WARP clients that hit origin.
 #
-#   secretspec set CLOUDFLARE_DNS_API_TOKEN   # Zone.DNS Edit
-#   secretspec set HERMES_ACME_EMAIL          # ACME account
-#   ./scripts/hermes-acme.sh                  # run | renew
+#   secretspec set HERMES_ACME_EMAIL
+#   # Token: this lab already has CLOUDFLARE_API_TOKEN in the environment.
+#   # secretspec 0.8 dotenv is the devenv default; env is a valid provider:
+#   #   secretspec run --provider env -- ./scripts/hermes-acme.sh
+#   # or copy once: secretspec import env
+#   ./scripts/hermes-acme.sh
 #   devenv restart caddy                      # pick up certs (pathExists)
 #
 # Place existing LE/ZeroSSL PEMs at
@@ -34,6 +37,15 @@ if [[ "${1:-}" == "status" ]]; then
   exit 1
 fi
 
+# If the CF token is not in this process yet, re-exec under secretspec's
+# env provider (reads CLOUDFLARE_* from the parent environment).
+if [[ -z "${CLOUDFLARE_API_TOKEN:-}${CLOUDFLARE_DNS_API_TOKEN:-}" ]] \
+   && [[ -z "${HERMES_ACME_NO_SECRETSPEC_ENV:-}" ]] \
+   && command -v secretspec >/dev/null 2>&1; then
+  export HERMES_ACME_NO_SECRETSPEC_ENV=1
+  exec secretspec run --provider env -- "$0" "$@"
+fi
+
 if [[ -z "$EMAIL" ]]; then
   echo "hermes-acme: set HERMES_ACME_EMAIL (ACME account)." >&2
   exit 1
@@ -41,7 +53,8 @@ fi
 
 TOKEN="${CLOUDFLARE_DNS_API_TOKEN:-${CLOUDFLARE_API_TOKEN:-}}"
 if [[ -z "$TOKEN" ]]; then
-  echo "hermes-acme: set CLOUDFLARE_DNS_API_TOKEN (Zone.DNS Edit) for Let's Encrypt DNS-01." >&2
+  echo "hermes-acme: need CLOUDFLARE_API_TOKEN (or CLOUDFLARE_DNS_API_TOKEN) in the environment." >&2
+  echo "  secretspec run --provider env -- $0 $*" >&2
   exit 1
 fi
 export CF_DNS_API_TOKEN="$TOKEN"
