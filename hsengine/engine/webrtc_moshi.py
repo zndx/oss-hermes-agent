@@ -222,43 +222,51 @@ async def follow_audio(track: Any, board: Any, *, session_id: str = "") -> None:
                     log.info("moshi stt connected %s", url)
 
                     async def sender() -> None:
-                        silence = np.zeros(_MOSHI_RATE, dtype=np.float32)
-                        await ws.send(
-                            msgpack.packb(
-                                {"type": "Audio", "pcm": [float(x) for x in silence]},
-                                use_bin_type=True,
-                                use_single_float=True,
+                        from websockets.exceptions import ConnectionClosed
+
+                        try:
+                            silence = np.zeros(_MOSHI_RATE, dtype=np.float32)
+                            await ws.send(
+                                msgpack.packb(
+                                    {"type": "Audio", "pcm": [float(x) for x in silence]},
+                                    use_bin_type=True,
+                                    use_single_float=True,
+                                )
                             )
-                        )
-                        while True:
-                            piece = await chunks.get()
-                            msg = msgpack.packb(
-                                {"type": "Audio", "pcm": [float(x) for x in piece]},
-                                use_bin_type=True,
-                                use_single_float=True,
-                            )
-                            await ws.send(msg)
+                            while True:
+                                piece = await chunks.get()
+                                msg = msgpack.packb(
+                                    {"type": "Audio", "pcm": [float(x) for x in piece]},
+                                    use_bin_type=True,
+                                    use_single_float=True,
+                                )
+                                await ws.send(msg)
+                        except ConnectionClosed:
+                            log.info("moshi stt send closed")
 
                     async def receiver() -> None:
-                        async for raw in ws:
-                            data = msgpack.unpackb(raw, raw=False)
-                            if isinstance(data, dict):
-                                line = captioner.on_message(data)
-                                if line and data.get("type") == "Word":
-                                    word = str(data.get("text") or "").strip()
-                                    if word:
-                                        turns.on_word(word)
+                        from websockets.exceptions import ConnectionClosed
+
+                        try:
+                            async for raw in ws:
+                                data = msgpack.unpackb(raw, raw=False)
+                                if isinstance(data, dict):
+                                    line = captioner.on_message(data)
+                                    if line and data.get("type") == "Word":
+                                        word = str(data.get("text") or "").strip()
+                                        if word:
+                                            turns.on_word(word)
+                        except ConnectionClosed:
+                            log.info("moshi stt recv closed")
 
                     send_task = asyncio.create_task(sender())
                     recv_task = asyncio.create_task(receiver())
-                    done, pending_tasks = await asyncio.wait(
+                    _done, pending_tasks = await asyncio.wait(
                         {send_task, recv_task}, return_when=asyncio.FIRST_COMPLETED
                     )
                     for task in pending_tasks:
                         task.cancel()
-                    for task in done:
-                        if not task.cancelled() and task.exception():
-                            raise task.exception()
+                    await asyncio.gather(send_task, recv_task, return_exceptions=True)
             except asyncio.CancelledError:
                 raise
             except Exception as exc:
@@ -272,3 +280,4 @@ async def follow_audio(track: Any, board: Any, *, session_id: str = "") -> None:
     finally:
         ingest_task.cancel()
         pump_task.cancel()
+        await asyncio.gather(ingest_task, pump_task, return_exceptions=True)
