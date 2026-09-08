@@ -308,6 +308,58 @@ def agenda(*, item_id: str = "") -> dict[str, Any]:
     return out
 
 
+def search(*, query: str, stream: str = "all", limit: int = 6) -> dict[str, Any]:
+    """KB and/or web hits via ServerQuery SEARCH (two hops to Gaius)."""
+    from hsengine.engine import federation
+    from hsengine.engine.generated.zndx.engine.v1 import engine_pb2 as zpb
+
+    q = " ".join((query or "").split())
+    kind = (stream or "all").strip().lower() or "all"
+    if kind not in ("kb", "web", "all"):
+        kind = "all"
+    try:
+        n = max(1, min(int(limit or 6), 8))
+    except (TypeError, ValueError):
+        n = 6
+    if not q:
+        return {"ok": False, "error": "empty query", "hits": []}
+    peers: list[dict[str, Any]] = []
+    hits: list[dict[str, Any]] = []
+    notes: list[str] = []
+    for target in _status_targets():
+        resp = federation.query_peer(
+            target, zpb.SERVER_QUERY_KIND_SEARCH, query=q, stream=kind, limit=n
+        )
+        if resp is None:
+            peers.append({"target": target, "reachable": False})
+            continue
+        h = resp.search_hint
+        if not h.project and not h.hits and not h.note:
+            continue
+        peers.append({"target": target, "project": h.project or resp.project, "reachable": True})
+        if h.note:
+            notes.append(f"{h.project or target}: {h.note}")
+        for hit in h.hits:
+            hits.append(
+                {
+                    "title": hit.title or "",
+                    "url": hit.url or "",
+                    "snippet": hit.snippet or "",
+                    "source": hit.source or "",
+                    "score": float(hit.score or 0.0),
+                    "project": h.project or resp.project,
+                }
+            )
+    return {
+        "ok": True,
+        "query": q,
+        "stream": kind,
+        "hits": hits[: n * 2],
+        "peers": peers,
+        "note": "; ".join(notes),
+    }
+
+
 CEREBRAS_TOOLS: list[dict[str, Any]] = [
     {
         "type": "function",
@@ -413,6 +465,47 @@ CEREBRAS_TOOLS: list[dict[str, Any]] = [
             },
         },
     },
+    {
+        "type": "function",
+        "function": {
+            "name": "kb_search",
+            "description": (
+                "Search the Gaius knowledge base (notes, thoughts, research) "
+                "over the lattice. Use when they ask what we already know, "
+                "to follow a wiki link from a presentation deck, or to look "
+                "up something in our notes — even casually. Then resume the "
+                "presentation from a slide heading if you were presenting."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "query": {"type": "string", "description": "What to look up in the KB."},
+                },
+                "required": ["query"],
+                "additionalProperties": False,
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "web_search",
+            "description": (
+                "Search the public web via Brave on the lattice. Use when they "
+                "ask what's happening outside our notes, a fact you do not "
+                "have, or news — even casually. Then resume the presentation "
+                "from a slide heading if you were presenting. Do not invent URLs."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "query": {"type": "string", "description": "Web search query."},
+                },
+                "required": ["query"],
+                "additionalProperties": False,
+            },
+        },
+    },
 ]
 
 def dispatch(name: str, args: dict[str, Any] | None = None) -> str:
@@ -440,4 +533,8 @@ def dispatch(name: str, args: dict[str, Any] | None = None) -> str:
         )
     if name == "agenda":
         return json.dumps(agenda(item_id=str(args.get("item_id") or "")), default=str)
+    if name == "kb_search":
+        return json.dumps(search(query=str(args.get("query") or ""), stream="kb"), default=str)
+    if name == "web_search":
+        return json.dumps(search(query=str(args.get("query") or ""), stream="web"), default=str)
     return json.dumps({"ok": False, "error": f"unknown tool {name}"})

@@ -40,6 +40,28 @@ def test_dispatch_unknown_is_json_error():
     assert data["ok"] is False
 
 
+def test_dispatch_kb_and_web_search(monkeypatch):
+    seen: list[tuple] = []
+
+    def _search(*, query, stream="all", limit=6):
+        seen.append((query, stream))
+        return {"ok": True, "query": query, "stream": stream, "hits": []}
+
+    monkeypatch.setattr(ops, "search", _search)
+    kb = json.loads(ops.dispatch("kb_search", {"query": "theta cycle"}))
+    web = json.loads(ops.dispatch("web_search", {"query": "intel 18A"}))
+    assert kb["stream"] == "kb"
+    assert web["stream"] == "web"
+    assert seen == [("theta cycle", "kb"), ("intel 18A", "web")]
+
+
+def test_spoken_system_mentions_kb_and_web_search():
+    text = SPOKEN_SYSTEM.lower()
+    assert "kb_search" in text
+    assert "web_search" in text
+    assert "slide heading" in text
+
+
 def test_sitrep_bundles_local_peers_and_activities(monkeypatch):
     monkeypatch.setattr(
         ops,
