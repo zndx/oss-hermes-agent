@@ -59,7 +59,18 @@ def test_spoken_system_mentions_kb_and_web_search():
     text = SPOKEN_SYSTEM.lower()
     assert "kb_search" in text
     assert "web_search" in text
-    assert "slide heading" in text
+    assert "narrative" in text
+
+
+def test_dispatch_narrative(monkeypatch):
+    monkeypatch.setattr(
+        ops,
+        "narrative",
+        lambda **k: {"ok": True, "elapsed_min": 4.0, "title": "Intel", "slide": 2},
+    )
+    data = json.loads(ops.dispatch("narrative", {"at_minute": 4}))
+    assert data["title"] == "Intel"
+    assert data["elapsed_min"] == 4.0
 
 
 def test_sitrep_bundles_local_peers_and_activities(monkeypatch):

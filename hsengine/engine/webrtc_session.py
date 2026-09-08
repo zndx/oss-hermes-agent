@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import time
 import uuid
 from pathlib import Path
 
@@ -129,6 +130,8 @@ class WebRtcHub:
         self._tasks: dict[str, list[asyncio.Task]] = {}
         self._speech: dict[str, object] = {}
         self._agenda: dict[str, str] = {}
+        self._started: dict[str, float] = {}
+        self._material: dict[str, dict] = {}
 
     async def offer(self, sdp: str, typ: str = "offer", agenda_id: str = "") -> dict[str, str]:
         try:
@@ -153,6 +156,7 @@ class WebRtcHub:
         pc = RTCPeerConnection(configuration=config)
         session_id = uuid.uuid4().hex[:12]
         self._pcs[session_id] = pc
+        self._started[session_id] = time.monotonic()
 
         from hsengine.engine import interactive
         from hsengine.engine.webrtc_captions import CaptionBoard, caption_track
@@ -221,6 +225,8 @@ class WebRtcHub:
                 session = {}
                 if aid:
                     session = await asyncio.to_thread(load_agenda_session, aid)
+                    if session:
+                        self._material[session_id] = session
                     log.info(
                         "webrtc opening agenda_id=%s title=%s deck=%s public=%s",
                         aid,
@@ -258,6 +264,39 @@ class WebRtcHub:
         """The session's agent-speech board (None after hangup)."""
         return self._speech.get(session_id)
 
+    def narrative_checkin(self, *, at_minute: float | None = None) -> dict:
+        """Where the running story is, given elapsed time since Connect."""
+        from hsengine.engine.agenda_deck import narrative_at
+
+        if not self._pcs:
+            return {"ok": False, "error": "no live AgentRTC session"}
+        sid = next(iter(self._pcs))
+        started = self._started.get(sid) or time.monotonic()
+        elapsed = (
+            float(at_minute) * 60.0
+            if at_minute is not None
+            else time.monotonic() - started
+        )
+        material = self._material.get(sid) or {}
+        if not material:
+            aid = self._agenda.get(sid) or ""
+            if aid:
+                from hsengine.engine.agenda_deck import load_agenda_session
+
+                material = load_agenda_session(aid) or {}
+                if material:
+                    self._material[sid] = material
+        if not material:
+            return {
+                "ok": True,
+                "elapsed_min": round(max(0.0, elapsed) / 60.0, 2),
+                "note": "no agenda deck on this call — lead from the live conversation",
+            }
+        place = narrative_at(material, elapsed_s=elapsed)
+        place["ok"] = True
+        place["session_id"] = sid
+        return place
+
     async def hangup(self, session_id: str) -> bool:
         if session_id not in self._pcs and session_id not in self._tracks:
             return False
@@ -269,6 +308,8 @@ class WebRtcHub:
             task.cancel()
         self._speech.pop(session_id, None)
         self._agenda.pop(session_id, None)
+        self._started.pop(session_id, None)
+        self._material.pop(session_id, None)
         for track in self._tracks.pop(session_id, []):
             try:
                 track.stop()  # type: ignore[union-attr]

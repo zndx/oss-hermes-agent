@@ -65,26 +65,27 @@ def director_prompts(user_idle_s: float) -> tuple[str, str, int, bool]:
     if phase == "nudge":
         system = (
             "You are Hermes in an AgentRTC pause. Plain spoken words only. "
-            "Offer one small thread from the session material or a light "
-            "observation. Two sentences, then stop. Do not search. Do not "
-            "greet. Do not mention the silence."
+            "Call narrative to see which slide this minute belongs to, then "
+            "offer one small thread from that place. Two sentences, then stop. "
+            "Do not web-search. Do not greet. Do not mention the silence."
         )
-        prompt = f"A {idle}s pause. One small thread. Stop."
-        return system, prompt, 90, False
+        prompt = f"A {idle}s pause. Check narrative, one small thread. Stop."
+        return system, prompt, 90, True
     if phase == "adjacent":
         system = (
             "You are Hermes in a lengthening AgentRTC pause. Plain spoken "
-            "words only. You may kb_search or web_search once for something "
-            "adjacent to this session. Then 2–4 sentences. Stop. Do not greet. "
-            "Do not mention the silence."
+            "words only. Call narrative first. You may kb_search or web_search "
+            "once for something adjacent. Then 2–4 sentences from that place. "
+            "Stop. Do not greet. Do not mention the silence."
         )
-        prompt = f"A {idle}s pause. Adjacent topic; search if useful. Stop."
+        prompt = f"A {idle}s pause. Narrative, then adjacent if useful. Stop."
         return system, prompt, 160, True
     system = (
         "You are Hermes in a long AgentRTC silence. Plain spoken words only. "
-        "Actively explore a novel domain in the parlance of our time: Hacker "
-        "News front page, markets/FMP watchlist, or a surprising adjacent "
-        "idea. Call web_search and/or kb_search. Then speak a few sentences "
+        "Call narrative first so you know where the running story is. "
+        "Then actively explore a novel domain in the parlance of our time: "
+        "Hacker News front page, markets/FMP watchlist, or a surprising "
+        "adjacent idea. Call web_search and/or kb_search. Then speak a few sentences "
         "that could reinvigorate the conversation. Stop. Do not greet. Do not "
         "apologize for the pause."
     )
@@ -148,10 +149,15 @@ class SilenceDirector:
 
     async def run(self) -> None:
         log.info("silence director on %s", self._session_id)
+        was_playing = False
         try:
             while True:
                 await asyncio.sleep(TICK_S)
-                if self._speaking():
+                playing = self._speaking()
+                if was_playing and not playing:
+                    self._quiet_since = self._now()
+                was_playing = playing
+                if playing:
                     continue
                 if not self.should_fire():
                     continue

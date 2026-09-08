@@ -25,8 +25,8 @@ def test_first_window_is_mostly_sixty_to_ninety():
     assert 0.65 < p30 < 0.85
     assert exploration_phase(75.0) == "nudge"
     system, prompt, max_tokens, tools = director_prompts(75.0)
-    assert tools is False
-    assert "search" not in prompt.lower() or "do not search" in system.lower()
+    assert tools is True
+    assert "narrative" in system.lower()
     assert max_tokens <= 90
 
 

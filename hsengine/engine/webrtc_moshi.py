@@ -39,8 +39,11 @@ SPOKEN_SYSTEM = (
     "id as item_id and tell them from its content. When they ask what we already "
     "know, to follow a note from the deck, or to look something up in our notes "
     "— call kb_search. When they ask about the wider world, news, or a fact you "
-    "do not have — call web_search. After a search, if you were presenting, "
-    "resume from a slide heading. Do not ask "
+    "do not have — call web_search. After a pause, interruption, silence, or "
+    "whenever you have lost the thread of this meeting — call narrative: it "
+    "returns the slide that belongs at this minute of the call. Speak from "
+    "there. After a search, if you were presenting, call narrative then resume. "
+    "Do not ask "
     "them to use special words. Do not invent who is healthy, what is running, "
     "or URLs you did not retrieve."
 )

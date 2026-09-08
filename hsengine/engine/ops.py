@@ -360,6 +360,13 @@ def search(*, query: str, stream: str = "all", limit: int = 6) -> dict[str, Any]
     }
 
 
+def narrative(*, at_minute: float | None = None) -> dict[str, Any]:
+    """Time-aligned presenterm place for the live AgentRTC call."""
+    from hsengine.engine.webrtc_session import HUB
+
+    return HUB.narrative_checkin(at_minute=at_minute)
+
+
 CEREBRAS_TOOLS: list[dict[str, Any]] = [
     {
         "type": "function",
@@ -468,6 +475,30 @@ CEREBRAS_TOOLS: list[dict[str, Any]] = [
     {
         "type": "function",
         "function": {
+            "name": "narrative",
+            "description": (
+                "Check in with the running session story. The pointer moves "
+                "with elapsed time since Connect — at minute 4 you get the "
+                "slide that belongs at minute 4, not the opening. Call this "
+                "after a pause, interruption, silence cue, or whenever you "
+                "have lost the thread. Then speak from that slide. Casual "
+                "phrasing counts; they will not name this tool."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "at_minute": {
+                        "type": "number",
+                        "description": "Override elapsed minutes (tests). Omit to use wall time since Connect.",
+                    }
+                },
+                "additionalProperties": False,
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
             "name": "kb_search",
             "description": (
                 "Search the Gaius knowledge base (notes, thoughts, research) "
@@ -533,6 +564,15 @@ def dispatch(name: str, args: dict[str, Any] | None = None) -> str:
         )
     if name == "agenda":
         return json.dumps(agenda(item_id=str(args.get("item_id") or "")), default=str)
+    if name == "narrative":
+        raw = args.get("at_minute")
+        minute = None
+        if raw is not None and raw != "":
+            try:
+                minute = float(raw)
+            except (TypeError, ValueError):
+                minute = None
+        return json.dumps(narrative(at_minute=minute), default=str)
     if name == "kb_search":
         return json.dumps(search(query=str(args.get("query") or ""), stream="kb"), default=str)
     if name == "web_search":
