@@ -128,8 +128,9 @@ class WebRtcHub:
         self._tracks: dict[str, list[object]] = {}
         self._tasks: dict[str, list[asyncio.Task]] = {}
         self._speech: dict[str, object] = {}
+        self._agenda: dict[str, str] = {}
 
-    async def offer(self, sdp: str, typ: str = "offer") -> dict[str, str]:
+    async def offer(self, sdp: str, typ: str = "offer", agenda_id: str = "") -> dict[str, str]:
         try:
             from aiortc import (
                 RTCConfiguration,
@@ -162,6 +163,8 @@ class WebRtcHub:
         from hsengine.engine import session_history
 
         session_history.open_session(session_id)
+        if (agenda_id or "").strip():
+            self._agenda[session_id] = agenda_id.strip()
         try:
             board = CaptionBoard()
             loop = asyncio.get_running_loop()
@@ -208,14 +211,16 @@ class WebRtcHub:
 
         async def _opening() -> None:
             try:
+                from hsengine.engine.agenda_deck import load_agenda_session, opening_prompt
+
+                aid = self._agenda.get(session_id, "")
+                session = load_agenda_session(aid) if aid else {}
+                prompt, system, max_tokens = opening_prompt(session)
                 result = await asyncio.to_thread(
                     interactive.complete_cerebras,
-                    prompt="Greet the listener in one short, clear sentence.",
-                    system_prompt=(
-                        "You are Hermes on a live voice call. One short spoken "
-                        "sentence only. No markdown, lists, or URLs."
-                    ),
-                    max_tokens=48,
+                    prompt=prompt,
+                    system_prompt=system,
+                    max_tokens=max_tokens,
                     temperature=0.4,
                     reasoning_effort="none",
                     tools=False,
@@ -250,6 +255,7 @@ class WebRtcHub:
         for task in self._tasks.pop(session_id, []):
             task.cancel()
         self._speech.pop(session_id, None)
+        self._agenda.pop(session_id, None)
         for track in self._tracks.pop(session_id, []):
             try:
                 track.stop()  # type: ignore[union-attr]

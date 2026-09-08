@@ -150,7 +150,11 @@ class HermesEngineServicer(pb_grpc.HermesEngineServicer):
         from hsengine.engine import webrtc_session
 
         try:
-            reply = await webrtc_session.HUB.offer(request.sdp, request.type or "offer")
+            reply = await webrtc_session.HUB.offer(
+                request.sdp,
+                request.type or "offer",
+                agenda_id=getattr(request, "agenda_id", "") or "",
+            )
         except FileNotFoundError as e:
             context.set_code(grpc.StatusCode.FAILED_PRECONDITION)
             context.set_details(str(e))

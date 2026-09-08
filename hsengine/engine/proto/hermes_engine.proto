@@ -46,6 +46,7 @@ message GetAgentInstanceReply {
 message WebRtcOfferRequest {
   string sdp = 1;
   string type = 2;  // "offer"
+  string agenda_id = 3;  // Gaius Agenda note path; empty = generic call
 }
 
 message WebRtcOfferReply {
