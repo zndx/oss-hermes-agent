@@ -100,8 +100,25 @@ class TurnTaker:
         self._gen = 0
         self._task: asyncio.Task | None = None
         self._busy = False
+        self.last_user_at = 0.0
+
+    @property
+    def busy(self) -> bool:
+        return self._busy
+
+    def try_claim(self) -> bool:
+        if self._busy:
+            return False
+        self._busy = True
+        return True
+
+    def release(self) -> None:
+        self._busy = False
 
     def on_word(self, word: str) -> None:
+        import time
+
+        self.last_user_at = time.monotonic()
         self._words.append(word)
         self._gen += 1
         gen = self._gen
@@ -175,7 +192,9 @@ def frame_to_mono24k(frame: Any) -> Any:
     return frame_to_mono(frame, rate=_MOSHI_RATE)
 
 
-async def follow_audio(track: Any, board: Any, *, session_id: str = "") -> None:
+async def follow_audio(
+    track: Any, board: Any, *, session_id: str = "", speech: Any | None = None
+) -> None:
     """Drain inbound WebRTC audio into moshi-server ASR."""
     import msgpack
     import numpy as np
@@ -183,6 +202,14 @@ async def follow_audio(track: Any, board: Any, *, session_id: str = "") -> None:
 
     captioner = MoshiCaptioner(board)
     turns = TurnTaker(asyncio.get_running_loop(), session_id=session_id)
+    from hsengine.engine.webrtc_silence import SilenceDirector
+
+    director = SilenceDirector(
+        asyncio.get_running_loop(),
+        session_id=session_id,
+        turns=turns,
+        speech=speech,
+    )
     url = moshi_url()
     if "auth_id=" not in url:
         sep = "&" if "?" in url else "?"
@@ -275,9 +302,13 @@ async def follow_audio(track: Any, board: Any, *, session_id: str = "") -> None:
 
     ingest_task = asyncio.create_task(ingest())
     pump_task = asyncio.create_task(pump())
+    director_task = asyncio.create_task(director.run())
     try:
         await asyncio.wait({ingest_task, pump_task}, return_when=asyncio.FIRST_COMPLETED)
     finally:
         ingest_task.cancel()
         pump_task.cancel()
-        await asyncio.gather(ingest_task, pump_task, return_exceptions=True)
+        director_task.cancel()
+        await asyncio.gather(
+            ingest_task, pump_task, director_task, return_exceptions=True
+        )

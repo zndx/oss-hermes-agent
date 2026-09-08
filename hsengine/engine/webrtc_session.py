@@ -203,7 +203,9 @@ class WebRtcHub:
             log.info("webrtc %s inbound %s", session_id, track.kind)
             if track.kind != "audio" or not captions:
                 return
-            task = loop.create_task(follow_audio(track, board, session_id=session_id))
+            task = loop.create_task(
+                follow_audio(track, board, session_id=session_id, speech=speech)
+            )
             self._tasks.setdefault(session_id, []).append(task)
 
         await pc.setRemoteDescription(RTCSessionDescription(sdp=sdp, type=typ or "offer"))
