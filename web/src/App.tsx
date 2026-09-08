@@ -247,6 +247,7 @@ const ICON_MAP: Record<string, ComponentType<{ className?: string }>> = {
   Star,
   Code,
   Eye,
+  Radio,
 };
 
 function resolveIcon(name: string): ComponentType<{ className?: string }> {
@@ -295,10 +296,18 @@ function partitionSidebarNav(
 ): { coreItems: NavItem[]; pluginItems: NavItem[] } {
   const merged = buildNavItems(builtIn, manifests);
   const builtinPaths = new Set(builtIn.map((i) => i.path));
+  const corePinned = new Set<string>();
+  for (const manifest of manifests) {
+    const pos = manifest.tab.position ?? "end";
+    const colon = pos.indexOf(":");
+    if (colon < 0) continue;
+    const target = "/" + pos.slice(colon + 1);
+    if (builtinPaths.has(target)) corePinned.add(manifest.tab.path);
+  }
   const coreItems: NavItem[] = [];
   const pluginItems: NavItem[] = [];
   for (const item of merged) {
-    if (builtinPaths.has(item.path)) coreItems.push(item);
+    if (builtinPaths.has(item.path) || corePinned.has(item.path)) coreItems.push(item);
     else pluginItems.push(item);
   }
   return { coreItems, pluginItems };
