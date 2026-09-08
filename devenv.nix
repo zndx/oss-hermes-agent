@@ -106,6 +106,7 @@ in
     ffmpeg
     portaudio
     grpcurl
+    lego # Let's Encrypt / DNS-01 (scripts/hermes-acme.sh, Cloudflare token)
     bubblewrap # jail engine+dashboard (scripts/lib/hermes-bwrap.sh)
     mc # wrapped alias `local` against the devenv rustfs service
     cmake # moshi-server (sentencepiece / opus)
@@ -161,16 +162,29 @@ in
     RUSTFS_CLIENT_CONFIG_DIR = config.env.DEVENV_STATE + "/rustfs/mc";
     # faster-whisper / tiny.en weights. Bound into the engine jail.
     HF_HOME = "/raid/cache/huggingface";
+    HERMES_AGENT_RTC_JOIN_URL = "https://tinybox.dev.vista.zndx.org:9120/listen";
   };
 
   # TLS front for LAN/WARP browsers (getUserMedia needs a secure context).
-  # Same shape as synth: caddy internal CA, no :80 redirect, default_sni for
-  # no-SNI IP clients. :9120 tls → dashboard :9119. Click-through is enough
-  # for a laptop; iPad WebKit wants the CA trusted once.
-  services.caddy = {
-    enable = true;
-    ca = null;
-    config = ''
+  # LAN names: Caddy internal CA. FQDN :9120: Let's Encrypt (Cloudflare DNS-01)
+  # when $DEVENV_STATE/lego/certificates/<fqdn>.{crt,key} exist; else internal.
+  # Cloudflare edge :443 (if proxied) uses Cloudflare's own cert — both public.
+  # Calendar join is https://<fqdn>:9120/listen so the browser hits this site.
+  services.caddy =
+    let
+      hermesFqdn = "tinybox.dev.vista.zndx.org";
+      legoDir = "${config.devenv.state}/lego/certificates";
+      fqdnCrt = "${legoDir}/${hermesFqdn}.crt";
+      fqdnKey = "${legoDir}/${hermesFqdn}.key";
+      fqdnTls =
+        if builtins.pathExists fqdnCrt && builtins.pathExists fqdnKey
+        then "tls ${fqdnCrt} ${fqdnKey}"
+        else "tls internal";
+    in
+    {
+      enable = true;
+      ca = null;
+      config = ''
       {
         local_certs
         auto_https disable_redirects
@@ -184,12 +198,16 @@ in
           protocols h1 h2
         }
       }
-      localhost:9120, 127.0.0.1:9120, 192.168.1.55:9120, tinybox:9120, tinybox.lan:9120, tinybox.dev.vista.zndx.org:9120 {
+      localhost:9120, 127.0.0.1:9120, 192.168.1.55:9120, tinybox:9120, tinybox.lan:9120 {
         tls internal
         reverse_proxy 127.0.0.1:9119
       }
-    '';
-  };
+      ${hermesFqdn}:9120 {
+        ${fqdnTls}
+        reverse_proxy 127.0.0.1:9119
+      }
+      '';
+    };
 
   # https://devenv.sh/services/rustfs/ — native service (ports, env, /health).
   # Overlay pin in devenv.yaml matches Signals/synth; package comes from pkgs.rustfs.
@@ -330,7 +348,7 @@ in
     echo "  hermes version         version / environment info"
     echo "  python -m hsengine     signals lattice engine (:50651, project=hermes)"
     echo "  nautilus               supervisor :50661 (observe; instance config/supervision/hermes.textproto)"
-    echo "  hermes dashboard       web UI :9119 HTTP / :9120 HTTPS (caddy local CA; getUserMedia)"
+    echo "  hermes dashboard       web UI :9119 HTTP / :9120 HTTPS (FQDN: LE via hermes-acme.sh, else caddy local CA)"
     echo "  rustfs                 S3 :9020 / console :9021  (mc alias local; $RUSTFS_DATA_DIR)"
     echo "  bwrap                  engine+dashboard jail (HOME=/home/hermes; HERMES_BWRAP=0 to skip)"
     echo "  node/npm               $(node --version 2>/dev/null || echo missing) / $(npm --version 2>/dev/null || echo missing)"

@@ -42,9 +42,16 @@ bwrap does not bind `/dev/snd` — correct; the mic is the laptop.
 | STT | existing `stt.provider` | Groq/OpenAI/local whisper once audio arrives. |
 
 `HERMES_DASHBOARD_PUBLIC_URL` must match the **browser origin**
-(`https://192.168.1.55:9120` or `https://tinybox.dev.vista.zndx.org`)
+(`https://192.168.1.55:9120` or `https://tinybox.dev.vista.zndx.org:9120`)
 so cookies and WS stay on the secure context. Caddy (loopback) is an
-already-trusted proxy for `X-Forwarded-Proto`.
+already-trusted proxy for `X-Forwarded-Proto`. AgentRTC calendar joins
+use `https://tinybox.dev.vista.zndx.org:9120/listen` (port required:
+WARP to origin has no listener on :443).
+
+Public cert on the FQDN (so iPad/Chrome trust the join URL without the
+Caddy local CA): Let's Encrypt via Cloudflare DNS-01 — `scripts/hermes-acme.sh`
+then restart Caddy. Cloudflare's own cert still covers a proxied :443 if
+you add one later; :9120 presents the LE cert. LAN names stay `tls internal`.
 
 ## Origins
 
@@ -53,7 +60,7 @@ already-trusted proxy for `X-Forwarded-Proto`.
 | `http://127.0.0.1:9119` | yes (loopback) |
 | `http://192.168.1.55:9119` | no |
 | `https://192.168.1.55:9120` (caddy, click-through) | yes |
-| `https://tinybox.dev.vista.zndx.org` (WARP TLS) | yes |
+| `https://tinybox.dev.vista.zndx.org:9120` (WARP → Caddy; LE if `hermes-acme.sh` ran) | yes |
 
 Chrome: Caddy used to advertise HTTP/3 (`Alt-Svc: h3=:9120`). A regular
 profile caches that for 30 days, then speaks QUIC; the interstitial's
