@@ -49,6 +49,7 @@ class ServerQueryKind(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
     SERVER_QUERY_KIND_THOUGHTS: _ClassVar[ServerQueryKind]
     SERVER_QUERY_KIND_AGENDA: _ClassVar[ServerQueryKind]
     SERVER_QUERY_KIND_SEARCH: _ClassVar[ServerQueryKind]
+    SERVER_QUERY_KIND_FMP: _ClassVar[ServerQueryKind]
 
 class ActivityState(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
     __slots__ = ()
@@ -120,6 +121,7 @@ SERVER_QUERY_KIND_ACTIVITIES: ServerQueryKind
 SERVER_QUERY_KIND_THOUGHTS: ServerQueryKind
 SERVER_QUERY_KIND_AGENDA: ServerQueryKind
 SERVER_QUERY_KIND_SEARCH: ServerQueryKind
+SERVER_QUERY_KIND_FMP: ServerQueryKind
 ACTIVITY_STATE_UNSPECIFIED: ActivityState
 ACTIVITY_QUEUED: ActivityState
 ACTIVITY_RUNNING: ActivityState
@@ -498,7 +500,7 @@ class ServerQueryRequest(_message.Message):
     def __init__(self, kind: _Optional[_Union[ServerQueryKind, str]] = ..., ttl: _Optional[int] = ..., nonce: _Optional[str] = ..., origin_project: _Optional[str] = ..., note_id: _Optional[str] = ..., limit: _Optional[int] = ..., since_ms: _Optional[int] = ..., stream: _Optional[str] = ..., query: _Optional[str] = ...) -> None: ...
 
 class ServerQueryResponse(_message.Message):
-    __slots__ = ("project", "remotes", "head", "peers", "schedules", "note", "surfaces", "queues", "workloads", "posture", "products", "cognition", "contributions", "activities", "thoughts_hint", "agenda_hint", "search_hint")
+    __slots__ = ("project", "remotes", "head", "peers", "schedules", "note", "surfaces", "queues", "workloads", "posture", "products", "cognition", "contributions", "activities", "thoughts_hint", "agenda_hint", "search_hint", "fmp_hint")
     PROJECT_FIELD_NUMBER: _ClassVar[int]
     REMOTES_FIELD_NUMBER: _ClassVar[int]
     HEAD_FIELD_NUMBER: _ClassVar[int]
@@ -516,6 +518,7 @@ class ServerQueryResponse(_message.Message):
     THOUGHTS_HINT_FIELD_NUMBER: _ClassVar[int]
     AGENDA_HINT_FIELD_NUMBER: _ClassVar[int]
     SEARCH_HINT_FIELD_NUMBER: _ClassVar[int]
+    FMP_HINT_FIELD_NUMBER: _ClassVar[int]
     project: str
     remotes: _containers.RepeatedCompositeFieldContainer[GitRemote]
     head: str
@@ -533,7 +536,42 @@ class ServerQueryResponse(_message.Message):
     thoughts_hint: ThoughtsHint
     agenda_hint: AgendaHint
     search_hint: SearchHint
-    def __init__(self, project: _Optional[str] = ..., remotes: _Optional[_Iterable[_Union[GitRemote, _Mapping]]] = ..., head: _Optional[str] = ..., peers: _Optional[_Iterable[_Union[PeerHint, _Mapping]]] = ..., schedules: _Optional[_Iterable[_Union[ScheduleHint, _Mapping]]] = ..., note: _Optional[_Union[WikiNote, _Mapping]] = ..., surfaces: _Optional[_Iterable[_Union[Surface, _Mapping]]] = ..., queues: _Optional[_Iterable[_Union[QueueHint, _Mapping]]] = ..., workloads: _Optional[_Iterable[_Union[WorkloadOffer, _Mapping]]] = ..., posture: _Optional[_Union[SourcePosture, _Mapping]] = ..., products: _Optional[_Iterable[_Union[ProductHint, _Mapping]]] = ..., cognition: _Optional[_Union[CognitionHint, _Mapping]] = ..., contributions: _Optional[_Union[ContributionsHint, _Mapping]] = ..., activities: _Optional[_Iterable[_Union[Activity, _Mapping]]] = ..., thoughts_hint: _Optional[_Union[ThoughtsHint, _Mapping]] = ..., agenda_hint: _Optional[_Union[AgendaHint, _Mapping]] = ..., search_hint: _Optional[_Union[SearchHint, _Mapping]] = ...) -> None: ...
+    fmp_hint: FmpHint
+    def __init__(self, project: _Optional[str] = ..., remotes: _Optional[_Iterable[_Union[GitRemote, _Mapping]]] = ..., head: _Optional[str] = ..., peers: _Optional[_Iterable[_Union[PeerHint, _Mapping]]] = ..., schedules: _Optional[_Iterable[_Union[ScheduleHint, _Mapping]]] = ..., note: _Optional[_Union[WikiNote, _Mapping]] = ..., surfaces: _Optional[_Iterable[_Union[Surface, _Mapping]]] = ..., queues: _Optional[_Iterable[_Union[QueueHint, _Mapping]]] = ..., workloads: _Optional[_Iterable[_Union[WorkloadOffer, _Mapping]]] = ..., posture: _Optional[_Union[SourcePosture, _Mapping]] = ..., products: _Optional[_Iterable[_Union[ProductHint, _Mapping]]] = ..., cognition: _Optional[_Union[CognitionHint, _Mapping]] = ..., contributions: _Optional[_Union[ContributionsHint, _Mapping]] = ..., activities: _Optional[_Iterable[_Union[Activity, _Mapping]]] = ..., thoughts_hint: _Optional[_Union[ThoughtsHint, _Mapping]] = ..., agenda_hint: _Optional[_Union[AgendaHint, _Mapping]] = ..., search_hint: _Optional[_Union[SearchHint, _Mapping]] = ..., fmp_hint: _Optional[_Union[FmpHint, _Mapping]] = ...) -> None: ...
+
+class FmpHit(_message.Message):
+    __slots__ = ("symbol", "title", "snippet", "url", "exchange", "as_of", "source")
+    SYMBOL_FIELD_NUMBER: _ClassVar[int]
+    TITLE_FIELD_NUMBER: _ClassVar[int]
+    SNIPPET_FIELD_NUMBER: _ClassVar[int]
+    URL_FIELD_NUMBER: _ClassVar[int]
+    EXCHANGE_FIELD_NUMBER: _ClassVar[int]
+    AS_OF_FIELD_NUMBER: _ClassVar[int]
+    SOURCE_FIELD_NUMBER: _ClassVar[int]
+    symbol: str
+    title: str
+    snippet: str
+    url: str
+    exchange: str
+    as_of: str
+    source: str
+    def __init__(self, symbol: _Optional[str] = ..., title: _Optional[str] = ..., snippet: _Optional[str] = ..., url: _Optional[str] = ..., exchange: _Optional[str] = ..., as_of: _Optional[str] = ..., source: _Optional[str] = ...) -> None: ...
+
+class FmpHint(_message.Message):
+    __slots__ = ("project", "query", "stream", "hits", "note", "spoken")
+    PROJECT_FIELD_NUMBER: _ClassVar[int]
+    QUERY_FIELD_NUMBER: _ClassVar[int]
+    STREAM_FIELD_NUMBER: _ClassVar[int]
+    HITS_FIELD_NUMBER: _ClassVar[int]
+    NOTE_FIELD_NUMBER: _ClassVar[int]
+    SPOKEN_FIELD_NUMBER: _ClassVar[int]
+    project: str
+    query: str
+    stream: str
+    hits: _containers.RepeatedCompositeFieldContainer[FmpHit]
+    note: str
+    spoken: str
+    def __init__(self, project: _Optional[str] = ..., query: _Optional[str] = ..., stream: _Optional[str] = ..., hits: _Optional[_Iterable[_Union[FmpHit, _Mapping]]] = ..., note: _Optional[str] = ..., spoken: _Optional[str] = ...) -> None: ...
 
 class SearchHit(_message.Message):
     __slots__ = ("title", "url", "snippet", "source", "score")

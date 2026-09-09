@@ -276,6 +276,7 @@ enum ServerQueryKind {
   SERVER_QUERY_KIND_THOUGHTS = 13;       // recent THOUGHTS of this engine's cognition — content, not counts (added 2026-09-07)
   SERVER_QUERY_KIND_AGENDA = 14;         // the AGENDA brief (today · tomorrow · the week) + item index; note_id = one item (added 2026-09-07)
   SERVER_QUERY_KIND_SEARCH = 15;         // KB and/or web hits; query= the string, stream= kb|web|all (added 2026-09-08)
+  SERVER_QUERY_KIND_FMP = 16;            // live FMP (key stays on the serving peer); stream= search|news|quote (added 2026-09-09)
 }
 
 message GitRemote {
@@ -380,8 +381,8 @@ message ServerQueryRequest {
   string note_id = 5;
   int32 limit = 6;        // kind=THOUGHTS: max thoughts (serving engine caps; 0 = its default)
   int64 since_ms = 7;     // kind=THOUGHTS: only thoughts at or after this unix ms (0 = serving-engine window)
-  string stream = 8;      // kind=THOUGHTS: thought kind filter; kind=SEARCH: kb | web | all ("" = all)
-  string query = 9;       // kind=SEARCH: the search string
+  string stream = 8;      // THOUGHTS kind filter; SEARCH kb|web|all; FMP search|news|quote
+  string query = 9;       // SEARCH string; FMP name/symbol
 }
 
 message ServerQueryResponse {
@@ -402,6 +403,33 @@ message ServerQueryResponse {
   ThoughtsHint thoughts_hint = 15;    // kind=THOUGHTS (added 2026-09-07 — additive v1.)
   AgendaHint agenda_hint = 16;        // kind=AGENDA (added 2026-09-07 — additive v1.)
   SearchHint search_hint = 17;        // kind=SEARCH (added 2026-09-08 — additive v1.)
+  FmpHint fmp_hint = 18;              // kind=FMP (added 2026-09-09 — additive v1.)
+}
+
+// ── FMP (added 2026-09-09 — additive v1) ─────────────────────────────────
+//
+// Live Financial Modeling Prep. The serving peer holds FMP_API_KEY and the
+// rate limiter; callers (Hermes, AgentRTC) never see the key. stream=
+// search (name → tickers) | news (headlines, query=optional symbol) |
+// quote (company profile). Empty hits plus `note` is honest (no key,
+// rate limit, no matches). `spoken` is the voice form.
+message FmpHit {
+  string symbol = 1;
+  string title = 2;
+  string snippet = 3;
+  string url = 4;
+  string exchange = 5;
+  string as_of = 6;
+  string source = 7;       // search | news | quote
+}
+
+message FmpHint {
+  string project = 1;
+  string query = 2;
+  string stream = 3;       // search | news | quote as served
+  repeated FmpHit hits = 4;
+  string note = 5;
+  string spoken = 6;
 }
 
 // ── Search (added 2026-09-08 — additive v1) ───────────────────────────────

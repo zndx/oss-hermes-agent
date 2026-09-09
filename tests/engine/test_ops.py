@@ -12,6 +12,7 @@ def test_spoken_system_treats_casual_checkin_as_ops():
     assert "how things are going" in text
     assert "casually" in text
     assert "special words" in text
+    assert " fmp" in text or "call fmp" in text
 
 
 def test_sitrep_tool_description_does_not_require_jargon():
@@ -53,6 +54,17 @@ def test_dispatch_kb_and_web_search(monkeypatch):
     assert kb["stream"] == "kb"
     assert web["stream"] == "web"
     assert seen == [("theta cycle", "kb"), ("intel 18A", "web")]
+
+
+def test_dispatch_fmp(monkeypatch):
+    def _fmp(*, query, stream="search", limit=6):
+        return {"ok": True, "query": query, "stream": stream, "hits": [{"symbol": "SLB"}]}
+
+    monkeypatch.setattr(ops, "fmp", _fmp)
+    data = json.loads(ops.dispatch("fmp", {"query": "schlumberger", "stream": "search"}))
+    assert data["hits"][0]["symbol"] == "SLB"
+    names = [t["function"]["name"] for t in ops.CEREBRAS_TOOLS]
+    assert "fmp" in names
 
 
 def test_glance_spoken_uses_buffer_note():

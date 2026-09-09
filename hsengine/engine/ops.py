@@ -367,6 +367,64 @@ def search(*, query: str, stream: str = "all", limit: int = 6) -> dict[str, Any]
     }
 
 
+def fmp(*, query: str, stream: str = "search", limit: int = 6) -> dict[str, Any]:
+    """Live FMP via ServerQuery FMP (Gaius holds the key). stream=search|news|quote."""
+    from hsengine.engine import federation
+    from hsengine.engine.generated.zndx.engine.v1 import engine_pb2 as zpb
+
+    q = " ".join((query or "").split())
+    kind = (stream or "search").strip().lower() or "search"
+    if kind not in ("search", "news", "quote"):
+        kind = "search"
+    try:
+        n = max(1, min(int(limit or 6), 8))
+    except (TypeError, ValueError):
+        n = 6
+    if kind != "news" and not q:
+        return {"ok": False, "error": "empty query", "hits": []}
+    peers: list[dict[str, Any]] = []
+    hits: list[dict[str, Any]] = []
+    notes: list[str] = []
+    spoken = ""
+    for target in _status_targets():
+        resp = federation.query_peer(
+            target, zpb.SERVER_QUERY_KIND_FMP, query=q, stream=kind, limit=n
+        )
+        if resp is None:
+            peers.append({"target": target, "reachable": False})
+            continue
+        h = getattr(resp, "fmp_hint", None)
+        if h is None or (not h.project and not h.hits and not h.note):
+            continue
+        peers.append({"target": target, "project": h.project or resp.project, "reachable": True})
+        if h.note:
+            notes.append(f"{h.project or target}: {h.note}")
+        if h.spoken and not spoken:
+            spoken = h.spoken
+        for hit in h.hits:
+            hits.append(
+                {
+                    "symbol": hit.symbol or "",
+                    "title": hit.title or "",
+                    "snippet": hit.snippet or "",
+                    "url": hit.url or "",
+                    "exchange": hit.exchange or "",
+                    "as_of": hit.as_of or "",
+                    "source": hit.source or kind,
+                    "project": h.project or resp.project,
+                }
+            )
+    return {
+        "ok": True,
+        "query": q,
+        "stream": kind,
+        "hits": hits[: n * 2],
+        "spoken": spoken,
+        "peers": peers,
+        "note": "; ".join(notes),
+    }
+
+
 def cognition_glance(*, stream: str = "buffer", limit: int = 6) -> dict[str, Any]:
     """Succinct dual-cognition buffer: AST upper buffer + HN/FMP entropy."""
     kind = (stream or "buffer").strip().lower() or "buffer"
@@ -650,6 +708,33 @@ CEREBRAS_TOOLS: list[dict[str, Any]] = [
             },
         },
     },
+    {
+        "type": "function",
+        "function": {
+            "name": "fmp",
+            "description": (
+                "Look up markets on Financial Modeling Prep via the lattice "
+                "(Gaius holds the API key). stream=search finds tickers by "
+                "name, news is headlines (optional symbol), quote is a company "
+                "profile. Use this instead of web_search for tickers, 10-Ks, "
+                "and listed companies. Then speak from hits or spoken."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "query": {
+                        "type": "string",
+                        "description": "Company name or ticker. Optional for news.",
+                    },
+                    "stream": {
+                        "type": "string",
+                        "description": "search | news | quote (default search).",
+                    },
+                },
+                "additionalProperties": False,
+            },
+        },
+    },
 ]
 
 def dispatch(name: str, args: dict[str, Any] | None = None) -> str:
@@ -697,4 +782,12 @@ def dispatch(name: str, args: dict[str, Any] | None = None) -> str:
         return json.dumps(search(query=str(args.get("query") or ""), stream="kb"), default=str)
     if name == "web_search":
         return json.dumps(search(query=str(args.get("query") or ""), stream="web"), default=str)
+    if name == "fmp":
+        return json.dumps(
+            fmp(
+                query=str(args.get("query") or ""),
+                stream=str(args.get("stream") or "search"),
+            ),
+            default=str,
+        )
     return json.dumps({"ok": False, "error": f"unknown tool {name}"})
