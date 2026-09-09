@@ -10,7 +10,7 @@ import threading
 import time
 import yaml
 from fastapi import FastAPI, Request
-from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -19,6 +19,46 @@ from utils import env_var_enabled
 
 # Same logger the code used before extraction (record parity).
 _log = logging.getLogger("hermes_cli.web_server")
+
+
+def listen_https_url() -> str:
+    """Canonical AgentRTC Listen URL (HTTPS). Mic capture needs a secure context."""
+    env = (os.environ.get("HERMES_AGENT_RTC_JOIN_URL") or "").strip()
+    if env:
+        return env
+    try:
+        from hsengine.config import get_str
+
+        return (get_str("hermes.engine.webrtc.join_url") or "").strip()
+    except Exception:
+        return ""
+
+
+def request_is_forwarded_https(request: Request) -> bool:
+    proto = (
+        (request.headers.get("x-forwarded-proto") or request.url.scheme or "")
+        .split(",", 1)[0]
+        .strip()
+        .lower()
+    )
+    return proto == "https"
+
+
+def listen_http_redirect_url(request: Request) -> str | None:
+    """HTTPS Listen URL when this request is the HTTP dashboard hitting /listen."""
+    path = (request.url.path or "").rstrip("/") or "/"
+    if path != "/listen":
+        return None
+    if request_is_forwarded_https(request):
+        return None
+    dest = listen_https_url()
+    if not dest.startswith("https://"):
+        return None
+    query = request.url.query
+    if query:
+        sep = "&" if "?" in dest else "?"
+        dest = f"{dest}{sep}{query}"
+    return dest
 
 
 def _normalise_prefix(raw: Optional[str]) -> str:
@@ -152,11 +192,13 @@ def mount_spa(application: FastAPI):
         chat_js = "true" if _DASHBOARD_EMBEDDED_CHAT_ENABLED else "false"
         gated = bool(getattr(app.state, "auth_required", False))
         token_js = "" if gated else f'window.__HERMES_SESSION_TOKEN__="{_SESSION_TOKEN}";'
+        listen_js = json.dumps(listen_https_url())
         bootstrap_script = (
             f"<script>{token_js}"
             f"window.__HERMES_DASHBOARD_EMBEDDED_CHAT__={chat_js};"
             f'window.__HERMES_BASE_PATH__="{prefix}";'
             f"window.__HERMES_AUTH_REQUIRED__={'true' if gated else 'false'};"
+            f"window.__HERMES_LISTEN_URL__={listen_js};"
             f"</script>"
         )
         if prefix:
@@ -205,6 +247,9 @@ def mount_spa(application: FastAPI):
     @application.get("/{full_path:path}")
     async def serve_spa(full_path: str, request: Request):
         prefix = _normalise_prefix(request.headers.get("x-forwarded-prefix"))
+        listen_to = listen_http_redirect_url(request)
+        if listen_to:
+            return RedirectResponse(listen_to, status_code=302)
         # An unmatched /api/* path is a missing endpoint, not a client-side route: return a
         # real 404 JSON instead of index.html (which breaks JSON clients with a SyntaxError).
         if full_path == "api" or full_path.startswith("api/"):

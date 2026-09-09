@@ -105,6 +105,7 @@ import type { PluginManifest } from "@/plugins";
 import { useTheme } from "@/themes";
 import { isDashboardEmbeddedChatEnabled } from "@/lib/dashboard-flags";
 import { latchChatActivation } from "@/lib/chat-activation";
+import { listenHttpsHref, listenNavHref } from "@/lib/listen-https";
 import { partitionSidebarNav } from "@/lib/sidebar-nav";
 import { api } from "@/lib/api";
 import type { StatusResponse, UpdateCheckResponse } from "@/lib/api";
@@ -416,10 +417,36 @@ export default function App() {
       : base.filter((n) => n.path !== "/analytics");
   }, [embeddedChat, showTokenAnalytics]);
 
-  const sidebarNav = useMemo(
-    () => partitionSidebarNav(builtinNav, manifests, resolveIcon),
-    [builtinNav, manifests],
-  );
+  const sidebarNav = useMemo(() => {
+    const split = partitionSidebarNav(builtinNav, manifests, resolveIcon);
+    const loc = {
+      origin: window.location.origin,
+      protocol: window.location.protocol,
+      search: window.location.search,
+      hash: window.location.hash,
+    };
+    const join = window.__HERMES_LISTEN_URL__;
+    const pin = (items: typeof split.coreItems) =>
+      items.map((item) => {
+        const href = listenNavHref(item.path, join, loc);
+        return href ? { ...item, href } : item;
+      });
+    return {
+      coreItems: pin(split.coreItems),
+      pluginItems: pin(split.pluginItems),
+    };
+  }, [builtinNav, manifests]);
+
+  useEffect(() => {
+    if (normalizedPath !== "/listen") return;
+    const dest = listenHttpsHref(window.__HERMES_LISTEN_URL__, {
+      origin: window.location.origin,
+      protocol: window.location.protocol,
+      search: window.location.search,
+      hash: window.location.hash,
+    });
+    if (dest) window.location.replace(dest);
+  }, [normalizedPath]);
   const routes = useMemo(
     () => buildRoutes(builtinRoutes, manifests),
     [builtinRoutes, manifests],
@@ -802,7 +829,7 @@ function SidebarNavLink({
   tooltipWarmRef,
   t,
 }: SidebarNavLinkProps) {
-  const { path, label, labelKey, icon: Icon } = item;
+  const { path, label, labelKey, icon: Icon, href } = item;
   const [hovered, setHovered] = useState(false);
   const [tooltipAnchor, setTooltipAnchor] = useState<HTMLElement | null>(null);
 
@@ -823,6 +850,40 @@ function SidebarNavLink({
       onMouseEnter={collapsed ? showTooltip : undefined}
       onMouseLeave={collapsed ? hideTooltip : undefined}
     >
+      {href ? (
+      <a
+        href={href}
+        onClick={closeMobile}
+        aria-label={collapsed ? navLabel : undefined}
+        onFocus={collapsed ? showTooltip : undefined}
+        onBlur={collapsed ? hideTooltip : undefined}
+        className={cn(
+          "group/nav relative flex items-center gap-3",
+          "px-5 py-2.5",
+          "font-sans text-display uppercase text-sm tracking-[0.12em]",
+          "whitespace-nowrap transition-colors cursor-pointer",
+          "focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-midground",
+          "text-text-secondary hover:text-midground",
+        )}
+        style={{
+          clipPath: "var(--component-tab-clip-path)",
+        }}
+      >
+        <Icon className="h-3.5 w-3.5 shrink-0" />
+        <span
+          className={cn(
+            "truncate transition-opacity duration-300",
+            collapsed ? "lg:opacity-0" : "lg:opacity-100",
+          )}
+        >
+          {navLabel}
+        </span>
+        <span
+          aria-hidden
+          className="absolute inset-y-0.5 left-1.5 right-1.5 bg-midground opacity-0 pointer-events-none transition-opacity duration-200 group-hover/nav:opacity-5"
+        />
+      </a>
+      ) : (
       <NavLink
         to={path}
         end={path === "/sessions"}
@@ -873,6 +934,7 @@ function SidebarNavLink({
           </>
         )}
       </NavLink>
+      )}
 
       {collapsed && hovered && tooltipAnchor && (
         <SidebarTooltip anchor={tooltipAnchor} label={navLabel} warmRef={tooltipWarmRef} />
@@ -1293,6 +1355,7 @@ interface GatewayDotProps {
 }
 
 interface NavItem {
+  href?: string;
   icon: ComponentType<{ className?: string }>;
   label: string;
   labelKey?: string;

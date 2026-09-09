@@ -9,6 +9,7 @@
 
 export type SidebarNavItem<TIcon> = {
   icon: TIcon;
+  href?: string;
   label: string;
   labelKey?: string;
   path: string;

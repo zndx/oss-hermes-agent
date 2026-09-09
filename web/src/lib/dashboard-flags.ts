@@ -7,6 +7,8 @@ declare global {
      * it directly and for parity with the server's bootstrap script.
      */
     __HERMES_DASHBOARD_EMBEDDED_CHAT__?: boolean;
+    /** Canonical HTTPS Listen/AgentRTC URL. HTTP dashboard navigations must use this. */
+    __HERMES_LISTEN_URL__?: string;
   }
 }
 
