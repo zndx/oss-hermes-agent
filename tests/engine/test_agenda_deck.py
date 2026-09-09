@@ -73,3 +73,32 @@ def test_opening_without_material_stays_a_short_greeting():
     prompt, system, max_tokens = opening_prompt({})
     assert "Greet the listener" in prompt
     assert max_tokens == 48
+
+
+def test_opening_uses_pipeline_briefs_when_there_is_no_session_material():
+    prompt, system, max_tokens = opening_prompt(
+        {},
+        pipeline={
+            "agenda_spoken": "Today is the AgentRTC retrospective.",
+            "thoughts_spoken": "I keep thinking about verifiable cell state.",
+        },
+    )
+    assert "AgentRTC retrospective" in prompt
+    assert "verifiable cell state" in prompt
+    assert "Greet the listener" not in prompt
+    assert "pipelines" in system.lower() or "briefs" in system.lower()
+    assert max_tokens > 48
+
+
+def test_opening_with_deck_still_carries_pipeline_briefs():
+    prompt, system, _ = opening_prompt(
+        {
+            "title": "Watchlist after the tape",
+            "public": "Decide whether the book moves.",
+            "deck": "Opening\n===\n\nWould you change the book today?\n",
+        },
+        pipeline={"thoughts_spoken": "Contracts and molecular partner specificity."},
+    )
+    assert "Would you change the book" in prompt
+    assert "molecular partner" in prompt
+    assert "background" in system.lower() or "briefs" in system.lower()

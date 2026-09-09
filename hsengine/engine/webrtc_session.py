@@ -220,6 +220,7 @@ class WebRtcHub:
         async def _opening() -> None:
             try:
                 from hsengine.engine.agenda_deck import load_agenda_session, opening_prompt
+                from hsengine.engine.context_pack import conversational_context
 
                 aid = self._agenda.get(session_id, "")
                 session = {}
@@ -234,7 +235,10 @@ class WebRtcHub:
                         "yes" if session.get("deck") else "no",
                         "yes" if session.get("public") else "no",
                     )
-                prompt, system, max_tokens = opening_prompt(session, agenda_id=aid)
+                pack = await asyncio.to_thread(conversational_context, agenda_id=aid)
+                prompt, system, max_tokens = opening_prompt(
+                    session, agenda_id=aid, pipeline=pack
+                )
                 result = await asyncio.to_thread(
                     interactive.complete_cerebras,
                     prompt=prompt,
