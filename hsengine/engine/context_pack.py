@@ -8,11 +8,17 @@ blank greeting. Failures are empty — never invent a brief.
 from __future__ import annotations
 
 import logging
-from typing import Any
 
 log = logging.getLogger("hsengine.engine.context_pack")
 
 _SPOKEN_CAP = 800
+_UNUSABLE = (
+    "unreachable",
+    "cannot reach",
+    "can't reach",
+    "no brief",
+    "nopool",
+)
 
 
 def _clip(text: str, n: int = _SPOKEN_CAP) -> str:
@@ -21,6 +27,19 @@ def _clip(text: str, n: int = _SPOKEN_CAP) -> str:
         return t
     cut = t[: n - 1].rsplit(" ", 1)[0]
     return cut + "…"
+
+
+def usable_spoken(text: str | None) -> str:
+    """Keep real spoken briefs; drop fetch/idle/error notes so they never go on the call."""
+    t = _clip(text or "")
+    if len(t) < 24:
+        return ""
+    low = t.lower()
+    if any(tok in low for tok in _UNUSABLE):
+        return ""
+    if t.startswith("#") or low.startswith(("error", "failed", "idle", "empty")):
+        return ""
+    return t
 
 
 def conversational_context(*, agenda_id: str = "") -> dict[str, str]:
@@ -35,9 +54,11 @@ def conversational_context(*, agenda_id: str = "") -> dict[str, str]:
         agenda = {}
     briefs = agenda.get("briefs") if isinstance(agenda, dict) else None
     if isinstance(briefs, list) and briefs:
-        spoken = str(briefs[0].get("spoken") or briefs[0].get("written") or "")
+        spoken = usable_spoken(
+            str(briefs[0].get("spoken") or briefs[0].get("written") or "")
+        )
         if spoken:
-            out["agenda_spoken"] = _clip(spoken)
+            out["agenda_spoken"] = spoken
     if agenda_id and isinstance(agenda, dict):
         item = agenda.get("item") if isinstance(agenda.get("item"), dict) else None
         if item:
@@ -54,9 +75,11 @@ def conversational_context(*, agenda_id: str = "") -> dict[str, str]:
         thoughts = {}
     tbriefs = thoughts.get("briefs") if isinstance(thoughts, dict) else None
     if isinstance(tbriefs, list) and tbriefs:
-        spoken = str(tbriefs[0].get("spoken") or tbriefs[0].get("written") or "")
+        spoken = usable_spoken(
+            str(tbriefs[0].get("spoken") or tbriefs[0].get("written") or "")
+        )
         if spoken:
-            out["thoughts_spoken"] = _clip(spoken)
+            out["thoughts_spoken"] = spoken
     return out
 
 
@@ -65,10 +88,10 @@ def pipeline_block(pack: dict[str, str] | None) -> str:
     if not pack:
         return ""
     parts: list[str] = []
-    agenda = pack.get("agenda_spoken") or ""
+    agenda = usable_spoken(pack.get("agenda_spoken") or "")
     if agenda:
         parts.append("Today's agenda brief:\n" + agenda)
-    thoughts = pack.get("thoughts_spoken") or ""
+    thoughts = usable_spoken(pack.get("thoughts_spoken") or "")
     if thoughts:
         parts.append("Latest thoughts brief:\n" + thoughts)
     return "\n\n".join(parts)

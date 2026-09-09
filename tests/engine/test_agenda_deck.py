@@ -31,6 +31,8 @@ def test_opening_uses_full_deck_when_present():
     assert "Would you change the book" in prompt
     assert "first slide" in system
     assert "off-script" in system
+    assert "You are Hermes" not in system
+    assert "casual" in system.lower() or "hello" in system.lower()
     assert max_tokens > 48
 
 
@@ -71,7 +73,9 @@ def test_narrative_at_minute_four_is_not_always_the_opening():
 
 def test_opening_without_material_stays_a_short_greeting():
     prompt, system, max_tokens = opening_prompt({})
-    assert "Greet the listener" in prompt
+    assert "casual hello" in prompt.lower()
+    assert "You are Hermes" not in system and "Hermes" not in prompt
+    assert "pipeline" not in system.lower()
     assert max_tokens == 48
 
 
@@ -85,8 +89,9 @@ def test_opening_uses_pipeline_briefs_when_there_is_no_session_material():
     )
     assert "AgentRTC retrospective" in prompt
     assert "verifiable cell state" in prompt
-    assert "Greet the listener" not in prompt
-    assert "pipelines" in system.lower() or "briefs" in system.lower()
+    assert "You are Hermes" not in system
+    assert "casual" in system.lower() or "hello" in system.lower()
+    assert "Airflow" not in system
     assert max_tokens > 48
 
 
@@ -101,4 +106,5 @@ def test_opening_with_deck_still_carries_pipeline_briefs():
     )
     assert "Would you change the book" in prompt
     assert "molecular partner" in prompt
-    assert "background" in system.lower() or "briefs" in system.lower()
+    assert "You are Hermes" not in system
+    assert "do not name them" in system.lower()

@@ -62,6 +62,15 @@ def load_agenda_session(agenda_id: str) -> dict[str, str]:
     return {}
 
 
+_VOICE_OPEN = (
+    "On a live voice call. Plain spoken words only — no markdown, HTML comments, "
+    "lists as markup, code, file paths, URLs, or operator paste (BEGIN SESSION). "
+    "Start with a casual hello (hey, hi, good morning) then a couple of sentences. "
+    "Never introduce yourself by name. "
+    "If background notes are missing, just talk from the session material or say hello."
+)
+
+
 def opening_prompt(
     session: dict[str, str],
     *,
@@ -76,19 +85,21 @@ def opening_prompt(
     public = session.get("public") or ""
     material = deck or public
     briefs = pipeline_block(pipeline)
+    extra = (
+        " After the hello you may draw on the background notes below when they "
+        "fit; do not name them or say how you got them."
+        if briefs
+        else ""
+    )
     if material:
         system = (
-            "You are Hermes leading an AgentRTC session. Plain spoken words only "
-            "— no markdown, HTML comments, lists as markup, code, file paths, "
-            "or operator paste (BEGIN SESSION). "
-            "Lead with a short opening (a few sentences, about a minute) from "
-            "the session material. If a presenterm deck is present, start at the "
-            "first slide; speaker notes are for you, not the audience, unless "
-            "they ask to go deeper. If they go off-script, answer, then resume "
-            "from a slide heading. Today's agenda and thoughts briefs are "
-            "background from the curation pipelines — weave them only when "
-            "they belong. Do not invent facts that are not in the material, "
-            "briefs, or tools."
+            _VOICE_OPEN
+            + extra
+            + " Then lead from the session material. If a presenterm deck is "
+            "present, start at the first slide; speaker notes are for you, not "
+            "the audience, unless they ask to go deeper. If they go off-script, "
+            "answer, then resume from a slide heading. Do not invent facts that "
+            "are not in the material or the notes."
         )
         prompt = f"Open the session titled {title}.\n\nSession material:\n{material}"
         if public and deck:
@@ -102,29 +113,25 @@ def opening_prompt(
         return prompt, system, 260
     if agenda_id:
         system = (
-            "You are Hermes leading an AgentRTC session. Plain spoken words only. "
-            "The session is tied to an Agenda item whose body could not be loaded. "
-            "Say you are here for that session and invite them to begin. "
-            "Do not invent the agenda contents."
+            _VOICE_OPEN
+            + extra
+            + " The named session body did not load. After hello, invite them "
+            "to begin. Do not invent the agenda contents."
         )
-        prompt = f"Open AgentRTC for agenda item {agenda_id}. You do not have the body yet."
+        prompt = f"Open the session.\n"
         if briefs:
-            prompt = prompt + "\n\n" + briefs
+            prompt = prompt + "\n" + briefs
         return prompt, system, 120
     if briefs:
         system = (
-            "You are Hermes on a live voice call. Plain spoken words only. "
-            "Lead from today's agenda brief and the latest thoughts brief "
-            "(Airflow cognition / agenda pipelines). A few sentences, then "
-            "stop. Do not invent items that are not in the briefs."
+            _VOICE_OPEN
+            + extra
+            + " After hello, a few sentences from the notes, then stop."
         )
-        prompt = "Open AgentRTC from today's pipeline briefs.\n\n" + briefs
+        prompt = "Open the call.\n\n" + briefs
         return prompt, system, 180
-    system = (
-        "You are Hermes on a live voice call. One short spoken sentence only. "
-        "No markdown, lists, or URLs."
-    )
-    return "Greet the listener in one short, clear sentence.", system, 48
+    system = _VOICE_OPEN + " One short spoken sentence only."
+    return "Say a casual hello. One short sentence.", system, 48
 
 
 def parse_slides(markdown: str) -> list[dict[str, Any]]:

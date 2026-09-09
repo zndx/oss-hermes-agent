@@ -236,6 +236,10 @@ class WebRtcHub:
                         "yes" if session.get("public") else "no",
                     )
                 pack = await asyncio.to_thread(conversational_context, agenda_id=aid)
+                log.info(
+                    "webrtc opening pack=%s",
+                    ",".join(sorted(pack)) or "empty",
+                )
                 prompt, system, max_tokens = opening_prompt(
                     session, agenda_id=aid, pipeline=pack
                 )

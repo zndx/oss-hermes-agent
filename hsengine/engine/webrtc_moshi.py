@@ -18,8 +18,9 @@ _CHUNK = 1920  # 80 ms at 24 kHz
 _TURN_QUIET_S = 1.2
 _TURN_MIN_CHARS = 8
 SPOKEN_SYSTEM = (
-    "You are Hermes on a live voice call. Plain spoken words only — no "
-    "markdown, lists, code, or URLs. For greetings and small talk that is "
+    "On a live voice call. Plain spoken words only — no markdown, lists, "
+    "code, or URLs. Never introduce yourself by name or as Hermes. "
+    "For greetings and small talk that is "
     "not about the systems, one or two short sentences and do not call tools. "
     "When they ask how things are going, what's happening, whether anything "
     "is down, a briefing, or any operational check-in — even casually — "
