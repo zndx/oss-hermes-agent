@@ -148,6 +148,13 @@ def _session_expired_response(request: Request) -> Response:
 async def gated_auth_middleware(
     request: Request, call_next: Callable[[Request], Awaitable[Response]]) -> Response:
     """Engaged only when ``app.state.auth_required is True``."""
+    # AgentRTC Listen needs HTTPS for getUserMedia. Bounce before /login so
+    # HTTP :9119 /listen never sits on an insecure origin.
+    from hermes_cli.web_server_dashboard import listen_http_redirect_url
+
+    listen_to = listen_http_redirect_url(request)
+    if listen_to:
+        return RedirectResponse(url=listen_to, status_code=302)
     if not getattr(request.app.state, "auth_required", False):
         return await call_next(request)
     # Already authenticated by the token-auth seam (service caller on a registered token
