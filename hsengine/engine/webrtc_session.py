@@ -195,6 +195,25 @@ class WebRtcHub:
             await self._drop(session_id)
             raise FileNotFoundError(f"no video track in {src}")
         self._tracks[session_id] = tracks
+        stt_started: set[str] = set()
+
+        def _start_stt(track) -> None:
+            if track is None or getattr(track, "kind", "") != "audio" or not captions:
+                return
+            tid = str(getattr(track, "id", "") or id(track))
+            if tid in stt_started:
+                return
+            stt_started.add(tid)
+            log.info(
+                "webrtc %s inbound audio id=%s ready=%s",
+                session_id,
+                tid,
+                getattr(track, "readyState", ""),
+            )
+            task = loop.create_task(
+                follow_audio(track, board, session_id=session_id, speech=speech)
+            )
+            self._tasks.setdefault(session_id, []).append(task)
 
         @pc.on("connectionstatechange")
         async def _on_state() -> None:
@@ -205,14 +224,24 @@ class WebRtcHub:
         @pc.on("track")
         def _on_track(track) -> None:
             log.info("webrtc %s inbound %s", session_id, track.kind)
-            if track.kind != "audio" or not captions:
-                return
-            task = loop.create_task(
-                follow_audio(track, board, session_id=session_id, speech=speech)
-            )
-            self._tasks.setdefault(session_id, []).append(task)
+            _start_stt(track)
+
+        audio_dir = [
+            line
+            for line in (sdp or "").splitlines()
+            if line.startswith("m=audio") or line.startswith("a=send") or line.startswith("a=recv")
+        ]
+        log.info("webrtc %s offer audio %s", session_id, audio_dir[:8] or "none")
 
         await pc.setRemoteDescription(RTCSessionDescription(sdp=sdp, type=typ or "offer"))
+        for tr in pc.getTransceivers():
+            recv = getattr(tr, "receiver", None)
+            _start_stt(getattr(recv, "track", None) if recv is not None else None)
+        if captions and not stt_started:
+            log.warning(
+                "webrtc %s no inbound mic — captions and replies will stay silent",
+                session_id,
+            )
         answer = await pc.createAnswer()
         await pc.setLocalDescription(answer)
         await _ice_complete(pc)
