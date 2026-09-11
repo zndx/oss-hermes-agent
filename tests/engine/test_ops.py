@@ -144,7 +144,13 @@ def test_sitrep_bundles_local_peers_and_activities(monkeypatch):
             "endpoints": [
                 {"capability": "thinking", "model": "Qwen", "healthy": True, "gpus": [0]}
             ],
-            "surfaces": [],
+            "surfaces": [
+                {
+                    "kind": "coordination",
+                    "healthy": False,
+                    "url": "#CO.00000002.STREAMDROP",
+                }
+            ],
         },
     )
     monkeypatch.setattr(
@@ -163,6 +169,8 @@ def test_sitrep_bundles_local_peers_and_activities(monkeypatch):
     assert snap["peers"][0]["project"] == "gaius"
     assert snap["activities"][0]["state"] == "running"
     assert snap["activities_ok"] is True
+    assert snap["airflow_hub"][0]["healthy"] is False
+    assert "STREAMDROP" in snap["airflow_hub"][0]["detail"]
 
 
 def test_dispatch_sitrep_returns_json(monkeypatch):

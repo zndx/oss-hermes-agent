@@ -56,7 +56,11 @@ def _peer_row(target: str) -> dict[str, Any]:
         "total_gpus": int(st.get("total_gpus") or 0),
         "endpoints": endpoints,
         "surfaces": [
-            {"kind": s.get("kind"), "healthy": bool(s.get("healthy"))}
+            {
+                "kind": s.get("kind"),
+                "healthy": bool(s.get("healthy")),
+                "url": s.get("url") or "",
+            }
             for s in (st.get("surfaces") or [])
             if isinstance(s, dict)
         ],
@@ -120,6 +124,17 @@ def sitrep() -> dict[str, Any]:
     """Single pane: local Hermes, federated Status, in-force activities."""
     peers = [_peer_row(t) for t in _status_targets()]
     acts = activities(kind="", active_only=True)
+    airflow_hub = []
+    for p in peers:
+        for s in p.get("surfaces") or []:
+            if s.get("kind") == "coordination":
+                airflow_hub.append(
+                    {
+                        "peer": p.get("project") or p.get("target"),
+                        "healthy": bool(s.get("healthy")),
+                        "detail": s.get("url") or "",
+                    }
+                )
     return {
         "when": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%MZ"),
         "hermes": hermes_local(),
@@ -127,6 +142,7 @@ def sitrep() -> dict[str, Any]:
         "activities": acts.get("activities") or [],
         "activities_ok": bool(acts.get("ok")),
         "activities_error": acts.get("error") or "",
+        "airflow_hub": airflow_hub,
         "reachable_peers": sum(1 for p in peers if p.get("reachable")),
         "peer_count": len(peers),
     }
