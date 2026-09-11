@@ -4,7 +4,14 @@ from __future__ import annotations
 import numpy as np
 
 from hsengine.engine.webrtc_mix import SpeechBoard
-from hsengine.engine.webrtc_tts import speak_into, tts_url, tts_voice
+from hsengine.engine.webrtc_tts import _tts_phrases, speak_into, tts_url, tts_voice
+
+
+def test_tts_phrases_group_words_at_sentence_breaks():
+    parts = _tts_phrases("Hello there. How are you doing today? Fine.")
+    assert parts[0].endswith(".")
+    assert all(len(p.split()) <= 12 for p in parts)
+    assert " ".join(parts).startswith("Hello there")
 
 
 def test_tts_url_is_the_moshi_streaming_path():

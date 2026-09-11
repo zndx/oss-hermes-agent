@@ -35,6 +35,22 @@ def tts_key() -> str:
     return _cfg_str("hermes.engine.webrtc.tts.moshi_key", "public_token")
 
 
+def _tts_phrases(text: str, *, max_words: int = 12) -> list[str]:
+    """Split spoken text into short phrases for Kyutai Text messages."""
+    words = (text or "").split()
+    out: list[str] = []
+    buf: list[str] = []
+    for w in words:
+        buf.append(w)
+        end = w.endswith((".", "?", "!", ";", ":"))
+        if end or len(buf) >= max_words:
+            out.append(" ".join(buf))
+            buf = []
+    if buf:
+        out.append(" ".join(buf))
+    return out or [text]
+
+
 def tts_voice() -> str:
     return _cfg_str(
         "hermes.engine.webrtc.tts.voice",
@@ -66,17 +82,25 @@ async def synthesize_chunks(text: str):
     async with websockets.connect(
         uri, additional_headers=headers, open_timeout=10, max_size=2**24
     ) as ws:
-        for word in cleaned.split():
-            await ws.send(msgpack.packb({"type": "Text", "text": word}, use_bin_type=True))
-        await ws.send(msgpack.packb({"type": "Eos"}, use_bin_type=True))
-        async for raw in ws:
-            data = msgpack.unpackb(raw, raw=False)
-            if not isinstance(data, dict):
-                continue
-            if data.get("type") == "Audio":
-                pcm = np.asarray(data.get("pcm") or [], dtype=np.float32).reshape(-1)
-                if pcm.size:
-                    yield pcm
+        try:
+            # Phrase-sized Text messages: word-at-a-time was closing the
+            # socket (1005) on ~800-char answers before any Audio arrived.
+            for phrase in _tts_phrases(cleaned):
+                await ws.send(msgpack.packb({"type": "Text", "text": phrase}, use_bin_type=True))
+            await ws.send(msgpack.packb({"type": "Eos"}, use_bin_type=True))
+            async for raw in ws:
+                data = msgpack.unpackb(raw, raw=False)
+                if not isinstance(data, dict):
+                    continue
+                if data.get("type") == "Audio":
+                    pcm = np.asarray(data.get("pcm") or [], dtype=np.float32).reshape(-1)
+                    if pcm.size:
+                        yield pcm
+        except Exception as e:
+            name = type(e).__name__
+            if "ConnectionClosed" not in name:
+                raise
+            log.warning("tts websocket closed (%s); keeping audio already queued", e)
 
 
 async def synthesize(text: str) -> Any:
