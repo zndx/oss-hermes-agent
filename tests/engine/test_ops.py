@@ -56,6 +56,15 @@ def test_dispatch_kb_and_web_search(monkeypatch):
     assert seen == [("theta cycle", "kb"), ("intel 18A", "web")]
 
 
+def test_search_kind_union_accepts_web_and_buffer(monkeypatch):
+    """tuple | frozenset TypeError used to kill web_search and silence glance."""
+    monkeypatch.setattr(ops, "_status_targets", lambda: [])
+    web = ops.search(query="hn", stream="web")
+    buf = ops.search(query="", stream="buffer")
+    assert web["ok"] is True and web["stream"] == "web"
+    assert buf["ok"] is True and buf["stream"] == "buffer"
+
+
 def test_dispatch_fmp(monkeypatch):
     def _fmp(*, query, stream="search", limit=6):
         return {"ok": True, "query": query, "stream": stream, "hits": [{"symbol": "SLB"}]}

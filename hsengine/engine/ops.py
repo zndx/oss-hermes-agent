@@ -322,7 +322,7 @@ def search(*, query: str, stream: str = "all", limit: int = 6) -> dict[str, Any]
 
     q = " ".join((query or "").split())
     kind = (stream or "all").strip().lower() or "all"
-    if kind not in ("kb", "web", "all") | _BUFFER_STREAMS:
+    if kind not in {"kb", "web", "all"} | _BUFFER_STREAMS:
         kind = "all"
     try:
         n = max(1, min(int(limit or 6), 8))
