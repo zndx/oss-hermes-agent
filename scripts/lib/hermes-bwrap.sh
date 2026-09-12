@@ -70,8 +70,13 @@ hermes_bwrap_exec() {
     --setenv HOME /home/hermes
     --setenv USER hermes
     --setenv HERMES_HOME /home/hermes/.hermes
+    # llm-wiki and similar skills follow WIKI_PATH. Keep the vault on the
+    # HERMES_HOME bind (named profile or common Hermes storage). Do not bind
+    # $HOME/wiki — Hermes-created notes do not belong in the operator home.
+    --setenv WIKI_PATH /home/hermes/.hermes/wiki
     --setenv HERMES_DASHBOARD_FILES_ROOT "$root"
   )
+  mkdir -p "$host_hermes/wiki"
   if [[ -n "$rustfs" && -d "$rustfs" ]]; then
     args+=(--bind "$rustfs" "$rustfs")
   fi
@@ -86,12 +91,6 @@ hermes_bwrap_exec() {
     mkdir -p "$hf"
     args+=(--bind "$hf" "$hf")
   fi
-
-  # llm-wiki writes ~/wiki. Jail HOME is /home/hermes; without this bind
-  # notes vanish when the engine process exits.
-  local wiki="${HERMES_WIKI:-$host_home/wiki}"
-  mkdir -p "$wiki"
-  args+=(--bind "$wiki" /home/hermes/wiki)
 
   # Editable signals-hsengine lives outside this checkout.
   local sp="${SIGNALS_PLUGINS:-}"

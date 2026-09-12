@@ -16,7 +16,7 @@ Karpathy 的 LLM Wiki：构建/查询互联 Markdown 知识库。
 |---|---|
 | 来源 | 内置（默认安装） |
 | 路径 | `skills/research/llm-wiki` |
-| 版本 | `2.1.0` |
+| 版本 | `2.1.1` |
 | 作者 | Hermes Agent |
 | 许可证 | MIT |
 | 平台 | linux, macos, windows |
@@ -49,12 +49,12 @@ Karpathy 的 LLM Wiki：构建/查询互联 Markdown 知识库。
 
 ## Wiki 位置
 
-**位置：** 通过 `WIKI_PATH` 环境变量设置（例如在 `~/.hermes/.env` 中）。
+**位置：** 通过 `WIKI_PATH` 环境变量设置（例如在 `${HERMES_HOME}/.env` 中）。Hermes 创建的笔记存放在当前 profile 的 Hermes home 下，而不是用户主目录。`~/wiki` 是错误的模式。
 
-未设置时，默认为 `~/wiki`。
+未设置时，默认为 `${HERMES_HOME}/wiki`。具名 profile 各自有自己的 Hermes home，vault 跟随当前 profile。不要在 `$HOME/wiki` 下创建或绑定 wiki。
 
 ```bash
-WIKI="${WIKI_PATH:-$HOME/wiki}"
+WIKI="${WIKI_PATH:-$HERMES_HOME/wiki}"
 ```
 
 Wiki 只是一个 Markdown 文件目录——可在 Obsidian、VS Code 或任意编辑器中打开。无需数据库，无需特殊工具。
@@ -92,7 +92,7 @@ wiki/
 ③ **扫描近期 `log.md`** — 读取最后 20-30 条记录，了解近期活动。
 
 ```bash
-WIKI="${WIKI_PATH:-$HOME/wiki}"
+WIKI="${WIKI_PATH:-$HERMES_HOME/wiki}"
 # Orientation reads at session start
 read_file "$WIKI/SCHEMA.md"
 read_file "$WIKI/index.md"
@@ -111,7 +111,7 @@ read_file "$WIKI/log.md" offset=<last 30 lines>
 
 当用户要求创建或启动 wiki 时：
 
-1. 确定 wiki 路径（从 `$WIKI_PATH` 环境变量获取，或询问用户；默认 `~/wiki`）
+1. 确定 wiki 路径（从 `$WIKI_PATH` 环境变量获取，或 `${HERMES_HOME}/wiki`；不要使用 `$HOME/wiki`）
 2. 创建上述目录结构
 3. 询问用户 wiki 涵盖的领域——要具体
 4. 编写针对该领域定制的 `SCHEMA.md`（见下方模板）
@@ -413,7 +413,7 @@ ob login --email <email> --password '<password>'
 ob sync-create-remote --name "LLM Wiki"
 
 # Connect the wiki directory to the vault
-cd ~/wiki
+cd "$HERMES_HOME/wiki"
 ob sync-setup --vault "<vault-id>"
 
 # Initial sync
@@ -433,7 +433,7 @@ Wants=network-online.target
 
 [Service]
 ExecStart=/path/to/ob sync --continuous
-WorkingDirectory=/home/user/wiki
+WorkingDirectory=%h/.hermes/wiki
 Restart=on-failure
 RestartSec=10
 
@@ -448,10 +448,11 @@ systemctl --user enable --now obsidian-wiki-sync
 sudo loginctl enable-linger $USER
 ```
 
-这样 Agent 可以在服务器上向 `~/wiki` 写入内容，同时你在笔记本/手机上的 Obsidian 中浏览同一 vault——变更在数秒内即可同步。
+这样 Agent 可以在服务器上向 `${HERMES_HOME}/wiki` 写入内容，同时你在笔记本/手机上的 Obsidian 中浏览同一 vault——变更在数秒内即可同步。具名 profile 使用该 profile 的 Hermes home，而不是 `%h/.hermes`。
 
 ## 注意事项
 
+- **永远不要把 wiki 写到用户主目录下**（`~/wiki`、`$HOME/wiki`）。使用 `${HERMES_HOME}/wiki`。
 - **永远不要修改 `raw/` 中的文件** — 来源是不可变的。更正内容写入 wiki 页面。
 - **始终先定位自身** — 在新会话中执行任何操作前，先读取 SCHEMA + index + 近期日志。跳过此步会导致重复和遗漏交叉引用。
 - **始终更新 index.md 和 log.md** — 跳过此步会导致 wiki 退化。这两个文件是导航骨架。

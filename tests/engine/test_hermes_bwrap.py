@@ -102,7 +102,7 @@ class HermesBwrapTests(unittest.TestCase):
             self.assertIn(str(target), proc.stderr)
             self.assertIn(str(repo), proc.stderr)
 
-    def test_host_wiki_is_bound_into_jail_home(self) -> None:
+    def test_wiki_path_is_under_hermes_home_not_user_home(self) -> None:
         import tempfile
 
         bwrap = ROOT / ".devenv/profile/bin/bwrap"
@@ -110,6 +110,7 @@ class HermesBwrapTests(unittest.TestCase):
             self.skipTest("devenv bubblewrap not installed yet")
         with tempfile.TemporaryDirectory() as tmp:
             home = Path(tmp) / "home"
+            hermes_home = home / ".hermes"
             home.mkdir()
             proc = _run(
                 "hermes_bwrap_exec /bin/true",
@@ -119,11 +120,15 @@ class HermesBwrapTests(unittest.TestCase):
                     "HERMES_BWRAP_BIN": str(bwrap),
                     "HERMES_ROOT": str(ROOT),
                     "HOME": str(home),
+                    "HERMES_HOME": str(hermes_home),
                 },
             )
             self.assertEqual(proc.returncode, 0, proc.stderr)
-            self.assertIn("/home/hermes/wiki", proc.stderr)
-            self.assertTrue((home / "wiki").is_dir())
+            self.assertRegex(proc.stderr, r"WIKI_PATH\s+/home/hermes/\.hermes/wiki")
+            self.assertNotRegex(proc.stderr, r"--bind\s+\S+/wiki\s+/home/hermes/wiki")
+            self.assertNotIn("/home/hermes/wiki", proc.stderr)
+            self.assertTrue((hermes_home / "wiki").is_dir())
+            self.assertFalse((home / "wiki").is_dir())
 
     def test_signals_plugins_tree_is_bound(self) -> None:
         import tempfile
