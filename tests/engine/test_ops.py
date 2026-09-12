@@ -105,6 +105,8 @@ def test_spoken_system_mentions_kb_and_web_search():
     assert "kb_search" in text
     assert "web_search" in text
     assert "conversation" in text
+    assert "session_search" in text
+    assert "shares this same session" in text or "share this same session" in text
 
 
 def test_dispatch_conversation(monkeypatch):
@@ -116,6 +118,106 @@ def test_dispatch_conversation(monkeypatch):
     data = json.loads(ops.dispatch("conversation", {}))
     assert data["count"] == 2
     assert data["turns"][0]["role"] == "user"
+
+
+def test_session_search_is_a_cerebras_tool():
+    names = [t["function"]["name"] for t in ops.CEREBRAS_TOOLS]
+    assert "session_search" in names
+    assert "conversation" in names
+    assert "hermes" in names
+
+
+def test_session_search_this_call_finds_overflow(monkeypatch, tmp_path):
+    from hermes_state import SessionDB
+    from hsengine.engine import session_history
+
+    db = SessionDB(db_path=tmp_path / "state.db")
+    session_history.configure(db)
+    try:
+        session_history.open_session("cafe")
+        session_history.record_turn("cafe", user="the xylophone briefing")
+        session_history.record_turn("cafe", assistant="got it")
+        for i in range(16):
+            session_history.record_turn("cafe", user=f"later-{i}", assistant=f"ack-{i}")
+        monkeypatch.setattr(session_history, "live_webrtc_id", lambda: "cafe")
+        data = json.loads(ops.dispatch("session_search", {"query": "xylophone"}))
+        assert data["ok"] is True
+        assert data["mode"] == "this_call"
+        assert data["hermes_session_id"] == "agent-rtc-cafe"
+        assert any("xylophone" in h["text"] for h in data["hits"])
+    finally:
+        session_history.configure(None)
+        db.close()
+
+
+def test_conversation_reports_overflow(monkeypatch, tmp_path):
+    from hermes_state import SessionDB
+    from hsengine.engine import session_history
+
+    db = SessionDB(db_path=tmp_path / "state.db")
+    session_history.configure(db)
+    try:
+        session_history.open_session("cafe")
+        for i in range(20):
+            session_history.record_turn("cafe", user=f"u{i}", assistant=f"a{i}")
+        monkeypatch.setattr(session_history, "live_webrtc_id", lambda: "cafe")
+        monkeypatch.setattr(
+            "hsengine.engine.webrtc_session.HUB.narrative_checkin", lambda **k: {}
+        )
+        out = ops.conversation(limit=8)
+        assert out["ok"] is True
+        assert out["hermes_session_id"] == "agent-rtc-cafe"
+        assert out["older_count"] > 0
+        assert out["count"] == 8
+    finally:
+        session_history.configure(None)
+        db.close()
+
+
+def test_hermes_binds_live_agent_rtc_session(monkeypatch):
+    seen: dict = {}
+
+    class FakeAgent:
+        def __init__(self, **kwargs):
+            seen["init"] = kwargs
+            self._end_session_on_close = True
+
+        def run_conversation(self, prompt, conversation_history=None):
+            seen["prompt"] = prompt
+            seen["history"] = conversation_history
+            return {"final_response": "done"}
+
+        def close(self):
+            seen["ended"] = self._end_session_on_close
+
+    monkeypatch.setattr(
+        "agent.interactive_cerebras.overlay_runtime",
+        lambda: {
+            "base_url": "https://api.cerebras.ai/v1",
+            "api_key": "k",
+            "provider": "cerebras",
+            "model": "qwen-3.8-27b",
+            "api_mode": "chat_completions",
+        },
+    )
+    monkeypatch.setattr("run_agent.AIAgent", FakeAgent)
+    monkeypatch.setattr(
+        "hsengine.engine.session_history.live_webrtc_id", lambda: "cafe"
+    )
+    monkeypatch.setattr(
+        "hsengine.engine.session_history.transcript_messages",
+        lambda _wid: [{"role": "user", "content": "we talked about the lattice"}],
+    )
+    monkeypatch.setattr("hsengine.engine.session_history._store", lambda: "db")
+    data = json.loads(ops.dispatch("hermes", {"prompt": "what did we just say"}))
+    assert data["ok"] is True
+    assert data["text"] == "done"
+    assert data["session_id"] == "agent-rtc-cafe"
+    assert seen["init"]["session_id"] == "agent-rtc-cafe"
+    assert seen["init"]["session_db"] == "db"
+    assert seen["init"]["platform"] == "agent-rtc"
+    assert seen["history"][0]["content"] == "we talked about the lattice"
+    assert seen["ended"] is False
 
 
 def test_dispatch_narrative(monkeypatch):

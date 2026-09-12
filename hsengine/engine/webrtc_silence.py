@@ -226,6 +226,7 @@ class SilenceDirector:
                 temperature=0.6,
                 reasoning_effort="none",
                 tools=tools,
+                session_id=self._session_id,
             )
             session_history.record_turn(
                 self._session_id, assistant=result.text, model=result.model

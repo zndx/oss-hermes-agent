@@ -69,6 +69,64 @@ def test_complete_cerebras_posts_qwen38(monkeypatch):
     assert "tools" not in sent.kwargs["json"]
 
 
+def test_complete_cerebras_includes_prior_turns(monkeypatch):
+    monkeypatch.setenv("CEREBRAS_API_KEY", "test-key")
+    payload = {
+        "model": "qwen-3.8-27b",
+        "choices": [{"message": {"content": "the lattice", "reasoning": ""}, "finish_reason": "stop"}],
+        "usage": {},
+    }
+    client = _client_with_payloads([payload])
+    history = [
+        {"role": "user", "content": "what is the hub"},
+        {"role": "assistant", "content": "Airflow with Metaflow"},
+    ]
+    with patch("hsengine.engine.interactive.httpx.Client", return_value=client):
+        with patch("hsengine.engine.interactive._speak_cerebras"):
+            result = interactive.complete_cerebras(
+                prompt="say that again",
+                tools=False,
+                history=history,
+            )
+    assert result.text == "the lattice"
+    messages = client.post.call_args.kwargs["json"]["messages"]
+    roles = [m["role"] for m in messages]
+    assert roles == ["user", "assistant", "user"]
+    assert messages[0]["content"] == "what is the hub"
+    assert messages[-1]["content"] == "say that again"
+
+
+def test_complete_cerebras_notes_overflow(monkeypatch):
+    monkeypatch.setenv("CEREBRAS_API_KEY", "test-key")
+    payload = {
+        "model": "qwen-3.8-27b",
+        "choices": [{"message": {"content": "ok", "reasoning": ""}, "finish_reason": "stop"}],
+        "usage": {},
+    }
+    client = _client_with_payloads([payload])
+    monkeypatch.setattr(
+        "hsengine.engine.session_history.prompt_history",
+        lambda *_a, **_k: (
+            [{"role": "user", "content": "recent"}, {"role": "assistant", "content": "ack"}],
+            {"older_count": 12, "hermes_session_id": "agent-rtc-x"},
+        ),
+    )
+    monkeypatch.setattr("hsengine.engine.session_history.recalled_memory", lambda *_a, **_k: "")
+    with patch("hsengine.engine.interactive.httpx.Client", return_value=client):
+        with patch("hsengine.engine.interactive._speak_cerebras"):
+            interactive.complete_cerebras(
+                prompt="what did we say",
+                system_prompt="voice",
+                tools=False,
+                session_id="x",
+            )
+    messages = client.post.call_args.kwargs["json"]["messages"]
+    assert messages[0]["role"] == "system"
+    assert "older_count=12" in messages[0]["content"]
+    assert "session_search" in messages[0]["content"]
+    assert [m["role"] for m in messages[1:]] == ["user", "assistant", "user"]
+
+
 def test_complete_cerebras_checkin_runs_sitrep_then_speaks(monkeypatch):
     monkeypatch.setenv("CEREBRAS_API_KEY", "test-key")
     first = {

@@ -450,18 +450,27 @@ def cognition_glance(*, stream: str = "buffer", limit: int = 6) -> dict[str, Any
 
 
 def hermes(*, prompt: str) -> dict[str, Any]:
-    """Run Hermes proper (full tools + subagents) on Cerebras while AgentRTC is on."""
+    """Run Hermes proper (full tools + subagents) on Cerebras while AgentRTC is on.
+
+    Binds the live AgentRTC SessionDB session so the voice transcript is the
+    conversation Hermes sees, and memories it writes are the same session's.
+    """
     q = " ".join((prompt or "").split())
     if not q:
         return {"ok": False, "error": "empty prompt"}
     try:
         from agent.interactive_cerebras import overlay_runtime
+        from hsengine.engine import session_history
         from run_agent import AIAgent
     except Exception as e:
         return {"ok": False, "error": str(e)}
     ov = overlay_runtime()
     if not ov:
         return {"ok": False, "error": "interactive AgentRTC is not in force"}
+    webrtc_id = session_history.live_webrtc_id()
+    sid = session_history.hermes_session_id(webrtc_id) if webrtc_id else None
+    history = session_history.transcript_messages(webrtc_id) if webrtc_id else []
+    db = session_history._store() if webrtc_id else None
     agent = AIAgent(
         base_url=ov["base_url"],
         api_key=ov["api_key"],
@@ -470,9 +479,20 @@ def hermes(*, prompt: str) -> dict[str, Any]:
         api_mode=ov.get("api_mode") or "chat_completions",
         quiet_mode=True,
         skip_background_review=True,
+        session_id=sid,
+        session_db=db,
+        platform="agent-rtc",
     )
-    text = agent.chat(q)
-    return {"ok": True, "text": text, "model": ov["model"]}
+    agent._end_session_on_close = False
+    try:
+        result = agent.run_conversation(q, conversation_history=history)
+        text = str((result or {}).get("final_response") or "")
+    finally:
+        try:
+            agent.close()
+        except Exception:
+            log.warning("hermes agent close failed", exc_info=True)
+    return {"ok": True, "text": text, "model": ov["model"], "session_id": sid or ""}
 
 
 def glance_spoken(d: dict[str, Any] | None) -> str:
@@ -516,19 +536,20 @@ def narrative(*, at_minute: float | None = None) -> dict[str, Any]:
     return HUB.narrative_checkin(at_minute=at_minute)
 
 
-def conversation(*, limit: int = 16) -> dict[str, Any]:
+def conversation(*, limit: int = 32) -> dict[str, Any]:
     """This call's recent turns plus the time-aligned narrative place."""
     from hsengine.engine import session_history
     from hsengine.engine.webrtc_session import HUB
 
-    if not getattr(HUB, "_pcs", None):
+    sid = session_history.live_webrtc_id()
+    if not sid:
         return {"ok": False, "error": "no live AgentRTC session"}
-    sid = next(iter(HUB._pcs))
     try:
-        n = max(1, min(int(limit or 16), 24))
+        n = max(1, min(int(limit or 32), session_history.VOICE_WINDOW))
     except (TypeError, ValueError):
-        n = 16
+        n = 32
     turns = session_history.recent_turns(sid, limit=n)
+    meta = session_history.window_meta(sid, shown=len(turns))
     place = HUB.narrative_checkin()
     story = {
         k: place.get(k)
@@ -552,10 +573,62 @@ def conversation(*, limit: int = 16) -> dict[str, Any]:
     return {
         "ok": True,
         "session_id": sid,
+        "hermes_session_id": meta["hermes_session_id"],
         "turns": turns,
         "count": len(turns),
+        "older_count": meta["older_count"],
+        "total": meta["total"],
         "narrative": story,
     }
+
+
+def session_search(
+    *,
+    query: str = "",
+    session_id: str = "",
+    limit: int = 3,
+    around_message_id: int | None = None,
+    window: int = 5,
+) -> dict[str, Any]:
+    """Recall this AgentRTC call and other Hermes sessions (FTS5)."""
+    from hsengine.engine import session_history
+    from tools.session_search_tool import session_search as _search
+
+    live_w = session_history.live_webrtc_id()
+    live = session_history.hermes_session_id(live_w) if live_w else ""
+    sid = (session_id or "").strip()
+    q = (query or "").strip()
+    if q and not sid and around_message_id is None and live_w:
+        hits = session_history.search_this_call(live_w, q, limit=max(limit, 8))
+        if hits:
+            return {
+                "ok": True,
+                "mode": "this_call",
+                "hermes_session_id": live,
+                "hits": hits,
+                "count": len(hits),
+            }
+    kwargs: dict[str, Any] = {
+        "query": q,
+        "limit": limit,
+        "window": window,
+    }
+    if around_message_id is not None:
+        kwargs["around_message_id"] = around_message_id
+        kwargs["session_id"] = sid or live
+    elif sid:
+        kwargs["session_id"] = sid
+    elif not q and live:
+        kwargs["session_id"] = live
+    raw = _search(**kwargs)
+    try:
+        data = json.loads(raw)
+    except json.JSONDecodeError:
+        return {"ok": False, "error": raw}
+    if isinstance(data, dict):
+        data.setdefault("hermes_session_id", live)
+        return data
+    return {"ok": True, "result": data, "hermes_session_id": live}
 
 
 CEREBRAS_TOOLS: list[dict[str, Any]] = [
@@ -668,18 +741,61 @@ CEREBRAS_TOOLS: list[dict[str, Any]] = [
         "function": {
             "name": "conversation",
             "description": (
-                "This call's own context: what we have already said, plus "
-                "where the running story is at this minute. Call after a "
-                "pause, interruption, or whenever you need continuity — "
-                "do not guess what was said earlier. Casual phrasing counts."
+                "This call's own context: recent turns plus where the "
+                "running story is at this minute. Recent turns are already "
+                "in context; call this after a pause or for the slide. "
+                "If older_count is greater than zero, earlier turns of "
+                "this call are in Hermes — use session_search, do not guess. "
+                "Casual phrasing counts."
             ),
             "parameters": {
                 "type": "object",
                 "properties": {
                     "limit": {
                         "type": "integer",
-                        "description": "How many recent turns to include (default 16).",
+                        "description": "How many recent turns to include (default 32).",
                     }
+                },
+                "additionalProperties": False,
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "session_search",
+            "description": (
+                "Recall earlier turns of this call and other Hermes "
+                "sessions. Use when something was said before the live "
+                "window, when they ask what we talked about, or when "
+                "older_count on conversation is greater than zero. Pass "
+                "query to search; omit query to read this call; pass "
+                "session_id from a prior result to read that session. "
+                "Do not invent earlier turns."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "query": {
+                        "type": "string",
+                        "description": "Keywords to find in this call or past sessions.",
+                    },
+                    "session_id": {
+                        "type": "string",
+                        "description": "Hermes session id to read (default: this AgentRTC call).",
+                    },
+                    "limit": {
+                        "type": "integer",
+                        "description": "How many matching sessions (default 3).",
+                    },
+                    "around_message_id": {
+                        "type": "integer",
+                        "description": "Scroll around this message id inside session_id.",
+                    },
+                    "window": {
+                        "type": "integer",
+                        "description": "Messages either side of around_message_id (default 5).",
+                    },
                 },
                 "additionalProperties": False,
             },
@@ -756,9 +872,11 @@ CEREBRAS_TOOLS: list[dict[str, Any]] = [
             "name": "hermes",
             "description": (
                 "Hermes proper: the full agent (skills, terminal, files, "
-                "browser, memory, delegate_task / subagents). Use when the "
-                "voice tools are not enough. Subagents also run on Cerebras "
-                "while this AgentRTC session is in force. Speak the result."
+                "browser, memory, delegate_task / subagents). Shares this "
+                "AgentRTC session — the live transcript and memories are "
+                "already the conversation. Use when the voice tools are "
+                "not enough. Subagents also run on Cerebras while this "
+                "session is in force. Speak the result."
             ),
             "parameters": {
                 "type": "object",
@@ -802,59 +920,113 @@ CEREBRAS_TOOLS: list[dict[str, Any]] = [
     },
 ]
 
+def _int_arg(args: dict[str, Any], key: str, default: int) -> int:
+    raw = args.get(key)
+    try:
+        return int(raw) if raw not in (None, "") else default
+    except (TypeError, ValueError):
+        return default
+
+
+def _dispatch_sitrep(_args: dict[str, Any]) -> str:
+    return json.dumps(sitrep(), default=str)
+
+
+def _dispatch_activities(args: dict[str, Any]) -> str:
+    kind = str(args.get("kind") or "")
+    active_only = args.get("active_only")
+    if active_only is None:
+        active_only = True
+    return json.dumps(activities(kind=kind, active_only=bool(active_only)), default=str)
+
+
+def _dispatch_thoughts(args: dict[str, Any]) -> str:
+    return json.dumps(
+        recent_thoughts(
+            limit=_int_arg(args, "limit", 6),
+            since_hours=_int_arg(args, "since_hours", 24),
+            kind=str(args.get("kind") or ""),
+        ),
+        default=str,
+    )
+
+
+def _dispatch_agenda(args: dict[str, Any]) -> str:
+    return json.dumps(agenda(item_id=str(args.get("item_id") or "")), default=str)
+
+
+def _dispatch_conversation(args: dict[str, Any]) -> str:
+    return json.dumps(conversation(limit=_int_arg(args, "limit", 32)), default=str)
+
+
+def _dispatch_narrative(args: dict[str, Any]) -> str:
+    raw = args.get("at_minute")
+    minute = None
+    if raw is not None and raw != "":
+        try:
+            minute = float(raw)
+        except (TypeError, ValueError):
+            minute = None
+    return json.dumps(narrative(at_minute=minute), default=str)
+
+
+def _dispatch_kb(args: dict[str, Any]) -> str:
+    return json.dumps(search(query=str(args.get("query") or ""), stream="kb"), default=str)
+
+
+def _dispatch_web(args: dict[str, Any]) -> str:
+    return json.dumps(search(query=str(args.get("query") or ""), stream="web"), default=str)
+
+
+def _dispatch_fmp(args: dict[str, Any]) -> str:
+    return json.dumps(
+        fmp(query=str(args.get("query") or ""), stream=str(args.get("stream") or "search")),
+        default=str,
+    )
+
+
+def _dispatch_hermes(args: dict[str, Any]) -> str:
+    return json.dumps(hermes(prompt=str(args.get("prompt") or "")), default=str)
+
+
+def _dispatch_session_search(args: dict[str, Any]) -> str:
+    around = args.get("around_message_id")
+    around_id = None
+    if around not in (None, ""):
+        try:
+            around_id = int(around)
+        except (TypeError, ValueError):
+            around_id = None
+    return json.dumps(
+        session_search(
+            query=str(args.get("query") or ""),
+            session_id=str(args.get("session_id") or ""),
+            limit=_int_arg(args, "limit", 3),
+            around_message_id=around_id,
+            window=_int_arg(args, "window", 5),
+        ),
+        default=str,
+    )
+
+
+_DISPATCH = {
+    "sitrep": _dispatch_sitrep,
+    "list_activities": _dispatch_activities,
+    "recent_thoughts": _dispatch_thoughts,
+    "agenda": _dispatch_agenda,
+    "conversation": _dispatch_conversation,
+    "session_search": _dispatch_session_search,
+    "narrative": _dispatch_narrative,
+    "kb_search": _dispatch_kb,
+    "web_search": _dispatch_web,
+    "fmp": _dispatch_fmp,
+    "hermes": _dispatch_hermes,
+}
+
+
 def dispatch(name: str, args: dict[str, Any] | None = None) -> str:
     args = args or {}
-    if name == "sitrep":
-        return json.dumps(sitrep(), default=str)
-    if name == "list_activities":
-        kind = str(args.get("kind") or "")
-        active_only = args.get("active_only")
-        if active_only is None:
-            active_only = True
-        return json.dumps(activities(kind=kind, active_only=bool(active_only)), default=str)
-    if name == "recent_thoughts":
-        try:
-            limit = int(args.get("limit") or 6)
-        except (TypeError, ValueError):
-            limit = 6
-        try:
-            since_hours = int(args.get("since_hours") or 24)
-        except (TypeError, ValueError):
-            since_hours = 24
-        return json.dumps(
-            recent_thoughts(limit=limit, since_hours=since_hours, kind=str(args.get("kind") or "")),
-            default=str,
-        )
-    if name == "agenda":
-        return json.dumps(agenda(item_id=str(args.get("item_id") or "")), default=str)
-    if name == "conversation":
-        raw = args.get("limit")
-        try:
-            lim = int(raw) if raw not in (None, "") else 16
-        except (TypeError, ValueError):
-            lim = 16
-        return json.dumps(conversation(limit=lim), default=str)
-    if name == "narrative":
-        raw = args.get("at_minute")
-        minute = None
-        if raw is not None and raw != "":
-            try:
-                minute = float(raw)
-            except (TypeError, ValueError):
-                minute = None
-        return json.dumps(narrative(at_minute=minute), default=str)
-    if name == "kb_search":
-        return json.dumps(search(query=str(args.get("query") or ""), stream="kb"), default=str)
-    if name == "web_search":
-        return json.dumps(search(query=str(args.get("query") or ""), stream="web"), default=str)
-    if name == "fmp":
-        return json.dumps(
-            fmp(
-                query=str(args.get("query") or ""),
-                stream=str(args.get("stream") or "search"),
-            ),
-            default=str,
-        )
-    if name == "hermes":
-        return json.dumps(hermes(prompt=str(args.get("prompt") or "")), default=str)
-    return json.dumps({"ok": False, "error": f"unknown tool {name}"})
+    fn = _DISPATCH.get(name)
+    if fn is None:
+        return json.dumps({"ok": False, "error": f"unknown tool {name}"})
+    return fn(args)

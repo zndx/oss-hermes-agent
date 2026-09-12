@@ -77,6 +77,50 @@ def _control_url() -> str:
 
 
 _TOOL_ROUNDS = 4
+_RECALL_CLIP = 800
+
+
+def _spoken_context(
+    *,
+    prompt: str,
+    system_prompt: str,
+    session_id: str,
+    history: list[dict] | None,
+) -> tuple[str, list[dict]]:
+    """System text plus prior user/assistant turns for a spoken Cerebras call.
+
+    ``history`` wins when the caller already assembled turns. Otherwise the
+    AgentRTC SessionDB window is loaded. Overflow is a recall note, not silence.
+    """
+    from hsengine.engine import session_history
+
+    parts = [system_prompt.strip()] if system_prompt and system_prompt.strip() else []
+    prior: list[dict] = []
+    meta: dict = {}
+    if history is not None:
+        prior = [
+            {"role": str(m.get("role") or ""), "content": str(m.get("content") or "")}
+            for m in history
+            if isinstance(m, dict) and m.get("role") in ("user", "assistant") and str(m.get("content") or "").strip()
+        ]
+    elif session_id:
+        prior, meta = session_history.prompt_history(session_id, current_user=prompt)
+    if prior and prior[-1]["role"] == "user":
+        prior = prior[:-1]
+    if session_id and int(meta.get("older_count") or 0) > 0:
+        parts.append(
+            "Earlier turns on this Hermes session are stored "
+            f"(older_count={meta['older_count']}, session_id={meta.get('hermes_session_id') or session_history.hermes_session_id(session_id)}). "
+            "Call session_search to recall them. Do not invent earlier turns."
+        )
+    if session_id:
+        recalled = session_history.recalled_memory(session_id, prompt)
+        if recalled:
+            parts.append(
+                "Recalled Hermes memory (do not read aloud unless they ask):\n"
+                + recalled[:_RECALL_CLIP]
+            )
+    return "\n\n".join(parts), prior
 
 
 def _tool_calls_from(msg: dict) -> list[dict]:
@@ -126,14 +170,23 @@ def complete_cerebras(
     reasoning_effort: str | None = None,
     tools: bool = True,
     speak: bool = True,
+    session_id: str = "",
+    history: list[dict] | None = None,
 ) -> CompleteResult:
     key = _cerebras_key()
     model = _cfg("hermes.engine.webrtc.interactive.cerebras_model", "qwen-3.8-27b")
     base = _cfg("hermes.engine.webrtc.interactive.cerebras_url", "https://api.cerebras.ai/v1").rstrip("/")
     effort = reasoning_effort or _cfg("hermes.engine.webrtc.interactive.reasoning_effort", "low")
+    sys_text, prior = _spoken_context(
+        prompt=prompt,
+        system_prompt=system_prompt,
+        session_id=session_id,
+        history=history,
+    )
     messages: list[dict] = []
-    if system_prompt:
-        messages.append({"role": "system", "content": system_prompt})
+    if sys_text:
+        messages.append({"role": "system", "content": sys_text})
+    messages.extend(prior)
     messages.append({"role": "user", "content": prompt})
     headers = {"Authorization": f"Bearer {key}", "Content-Type": "application/json"}
     prompt_tokens = 0

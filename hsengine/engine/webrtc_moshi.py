@@ -43,11 +43,13 @@ SPOKEN_SYSTEM = (
     "do not have — call web_search. When they ask about a ticker, a listed "
     "company, or markets — call fmp (search, news, or quote) instead of web_search. "
     "When they need Hermes proper (skills, files, terminal, browser, "
-    "subagents) — call hermes. "
-    "After a pause, interruption, silence, or "
-    "whenever you have lost the thread of this meeting — call conversation: "
-    "it returns what we already said on this call and the slide that belongs "
-    "at this minute. Speak from there; do not invent earlier turns. After a "
+    "subagents, memory) — call hermes; it shares this same session, so "
+    "this call's transcript and memories are already there. "
+    "Recent turns of this call are already in context. After a pause, "
+    "interruption, silence, or whenever you have lost the thread — call "
+    "conversation for the slide that belongs at this minute. If an earlier "
+    "part of this call (or another Hermes session) is missing from context "
+    "— call session_search; do not invent earlier turns. After a "
     "search, if you were presenting, call conversation then resume. "
     "Do not ask "
     "them to use special words. Do not invent who is healthy, what is running, "
@@ -160,9 +162,13 @@ class TurnTaker:
                 temperature=0.5,
                 reasoning_effort="none",
                 tools=True,
+                session_id=self._session_id,
             )
             session_history.record_turn(
                 self._session_id, assistant=result.text, model=result.model
+            )
+            session_history.remember_turn(
+                self._session_id, user=text, assistant=result.text
             )
         except Exception:
             log.exception("cerebras turn failed")
