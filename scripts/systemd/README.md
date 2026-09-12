@@ -10,6 +10,7 @@ ln -sf ~/local/src/oss/hermes-agent/scripts/systemd/hermes.service ~/.config/sys
 ln -sf ~/local/src/oss/hermes-agent/scripts/systemd/hermes-nautilus-tick.service ~/.config/systemd/user/
 ln -sf ~/local/src/oss/hermes-agent/scripts/systemd/hermes-nautilus-tick.timer ~/.config/systemd/user/
 systemctl --user daemon-reload
+systemctl --user daemon-reload
 systemctl --user enable --now hermes.service
 systemctl --user enable --now hermes-nautilus-tick.timer
 ```

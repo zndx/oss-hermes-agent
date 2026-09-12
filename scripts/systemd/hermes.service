@@ -8,8 +8,9 @@ Wants=network-online.target
 Type=oneshot
 RemainAfterExit=yes
 WorkingDirectory=%h/local/src/oss/hermes-agent
-ExecStart=/usr/bin/env devenv up -d
-ExecStop=/usr/bin/env devenv processes down
+Environment=PATH=%h/.nix-profile/bin:/nix/var/nix/profiles/default/bin:/usr/bin:/bin
+ExecStart=%h/.nix-profile/bin/devenv up -d
+ExecStop=%h/.nix-profile/bin/devenv processes down
 
 [Install]
 WantedBy=default.target
