@@ -9,16 +9,16 @@ from hsengine.engine.webrtc_moshi import SPOKEN_SYSTEM
 
 def test_spoken_system_treats_casual_checkin_as_ops():
     text = SPOKEN_SYSTEM.lower()
-    assert "how things are going" in text
-    assert "casually" in text
-    assert "special words" in text
+    assert "what's next" in text or "whats next" in text
+    assert "briefing" in text
+    assert "peer inventory" in text or "operating posture" in text
     assert " fmp" in text or "call fmp" in text
 
 
-def test_sitrep_tool_description_does_not_require_jargon():
+def test_sitrep_tool_description_is_not_a_readout():
     desc = ops.CEREBRAS_TOOLS[0]["function"]["description"].lower()
-    assert "how's it going" in desc or "hows it going" in desc
-    assert "even if they never say a tool name" in desc
+    assert "briefing" in desc or "readout" in desc
+    assert "one or two" in desc or "must not read" in desc
 
 
 def test_brief_activity_shortens_id():
