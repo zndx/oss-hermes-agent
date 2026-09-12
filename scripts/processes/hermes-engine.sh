@@ -21,6 +21,16 @@ export SIGNALS_ENGINE_TARGET="${SIGNALS_ENGINE_TARGET:-127.0.0.1:50551}"
 export SIGNALS_PLUGINS="${SIGNALS_PLUGINS:-$HOME/local/src/wxs/signals-plugins}"
 export PYTHONPATH=""
 
+# secretspec provider=dotenv writes gitignored .env; process-compose does
+# not always inject it. Source here so AgentRTC sees CEREBRAS_API_KEY
+# (same pattern as hermes-dashboard.sh).
+if [[ -z "${HERMES_ENGINE_IGNORE_DOTENV:-}" && -f "$ROOT/.env" ]]; then
+  set -a
+  # shellcheck disable=SC1091
+  source "$ROOT/.env"
+  set +a
+fi
+
 # shellcheck source=../lib/hermes-bwrap.sh
 source "$ROOT/scripts/lib/hermes-bwrap.sh"
 HERMES_ROOT="$ROOT"
