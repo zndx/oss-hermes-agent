@@ -46,8 +46,9 @@ SPOKEN_SYSTEM = (
     "subagents, memory) — call hermes; it shares this same session, so "
     "this call's transcript and memories are already there. "
     "Recent turns of this call are already in context. After a pause, "
-    "interruption, silence, or whenever you have lost the thread — call "
-    "conversation for the slide that belongs at this minute. If an earlier "
+    "interruption, or whenever you have lost the thread — call "
+    "conversation. Do not announce how long we have been talking or "
+    "which slide a clock thinks we are on unless they ask. If an earlier "
     "part of this call (or another Hermes session) is missing from context "
     "— call session_search; do not invent earlier turns. After a "
     "search, if you were presenting, call conversation then resume. "
@@ -112,6 +113,8 @@ class TurnTaker:
         self._task: asyncio.Task | None = None
         self._busy = False
         self.last_user_at = 0.0
+        self.last_agent_at = 0.0
+        self.pending_steer = ""
 
     @property
     def busy(self) -> bool:
@@ -152,12 +155,15 @@ class TurnTaker:
         try:
             log.info("user utterance %r", text)
             from hsengine.engine import interactive, session_history
+            from hsengine.engine.webrtc_silence import apply_steer_system
 
             session_history.record_turn(self._session_id, user=text)
+            steer = self.pending_steer
+            self.pending_steer = ""
             result = await asyncio.to_thread(
                 interactive.complete_cerebras,
                 prompt=text,
-                system_prompt=SPOKEN_SYSTEM,
+                system_prompt=apply_steer_system(SPOKEN_SYSTEM, steer),
                 max_tokens=280,
                 temperature=0.5,
                 reasoning_effort="none",

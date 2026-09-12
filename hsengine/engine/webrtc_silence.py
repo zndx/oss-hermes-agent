@@ -1,9 +1,8 @@
-"""Stochastic silence clock for AgentRTC self-initiated exploration.
+"""Silence clock for AgentRTC: a silent Cerebras turn that composes /steer.
 
-User-idle under 60s is dead air. From 60s the hazard ramps so the first
-poke typically lands in the 60–90s window; by 180s the rate is high and
-the prompt tells the model to search novel domains (HN, markets, KB).
-Director cues never barge TTS or a user turn.
+True quiet (no user words, no agent TTS) must last a few minutes before we
+nudge. The cue is never spoken: it writes a pending steer the next live turn
+drains. Director cues never barge TTS or a user turn.
 """
 from __future__ import annotations
 
@@ -16,105 +15,161 @@ from typing import Any, Callable
 
 log = logging.getLogger("hsengine.engine.webrtc.silence")
 
-IDLE_ARM_S = 60.0
-IDLE_FULL_S = 180.0
+IDLE_ARM_S = 180.0       # a few minutes of real quiet before the first nudge
+IDLE_FULL_S = 300.0      # five minutes → richer look (thoughts / KB / news)
 TICK_S = 2.0
-LAMBDA_ARM = 1.0 / 22.0  # ~74% of first fires by 90s
+LAMBDA_ARM = 1.0 / 22.0  # ~74% of first fires by 30s after arm
 LAMBDA_FULL = 1.0 / 7.0
-GAP_ARM_S = 14.0
-GAP_FULL_S = 5.0
+GAP_ARM_S = 90.0
+GAP_FULL_S = 45.0
+
+STEER_MOVES = ("deepen", "thought", "kb", "world")
+
+_STEER_RAILS = (
+    "You compose a /steer for the next spoken turn of this AgentRTC call. "
+    "You will not be heard. Output ONLY the steer text — no /steer prefix, "
+    "no quotes, no preamble, no markdown. "
+    "Never mention elapsed time, minute marks, slides as a clock, silence, "
+    "or that the call paused. Never greet. Never reset the conversation. "
+    "One or two sentences of guidance the speaker can follow as a natural "
+    "next move. Vary the idea; do not repeat a previous steer."
+)
 
 
-def idle_frac(user_idle_s: float) -> float:
-    if user_idle_s < IDLE_ARM_S:
+def idle_frac(idle_s: float) -> float:
+    if idle_s < IDLE_ARM_S:
         return 0.0
-    return min(1.0, (user_idle_s - IDLE_ARM_S) / (IDLE_FULL_S - IDLE_ARM_S))
+    return min(1.0, (idle_s - IDLE_ARM_S) / (IDLE_FULL_S - IDLE_ARM_S))
 
 
-def hazard_lambda(user_idle_s: float) -> float:
-    x = idle_frac(user_idle_s)
+def hazard_lambda(idle_s: float) -> float:
+    x = idle_frac(idle_s)
     if x <= 0.0:
         return 0.0
     return LAMBDA_ARM + (LAMBDA_FULL - LAMBDA_ARM) * (x * x)
 
 
-def cue_gap_s(user_idle_s: float) -> float:
-    x = idle_frac(user_idle_s)
+def cue_gap_s(idle_s: float) -> float:
+    x = idle_frac(idle_s)
     return GAP_ARM_S + (GAP_FULL_S - GAP_ARM_S) * x
 
 
-def fire_probability(user_idle_s: float, dt: float = TICK_S) -> float:
-    lam = hazard_lambda(user_idle_s)
+def fire_probability(idle_s: float, dt: float = TICK_S) -> float:
+    lam = hazard_lambda(idle_s)
     if lam <= 0.0 or dt <= 0.0:
         return 0.0
     return 1.0 - math.exp(-lam * dt)
 
 
-def exploration_phase(user_idle_s: float) -> str:
-    if user_idle_s < 90.0:
+def exploration_phase(idle_s: float) -> str:
+    if idle_s < IDLE_ARM_S + 60.0:
         return "nudge"
-    if user_idle_s < 150.0:
+    if idle_s < IDLE_FULL_S:
         return "adjacent"
     return "novel"
 
 
+def pick_move(rng: Callable[[], float], last: str = "") -> str:
+    choices = [m for m in STEER_MOVES if m != last] or list(STEER_MOVES)
+    idx = int(rng() * len(choices)) % len(choices)
+    return choices[idx]
+
+
+def strip_steer(text: str) -> str:
+    """Keep the steer only. Empty means the silent turn produced nothing."""
+    t = (text or "").strip()
+    if t.startswith("```"):
+        t = t.strip("`")
+        first, _, rest = t.partition("\n")
+        if first.lower() in ("text", "markdown", "md"):
+            t = rest
+        t = t.strip("`").strip()
+    if (t.startswith('"') and t.endswith('"')) or (t.startswith("'") and t.endswith("'")):
+        t = t[1:-1].strip()
+    low = t.lower()
+    for prefix in ("/steer ", "steer:", "the steer:", "steering:"):
+        if low.startswith(prefix):
+            t = t[len(prefix) :].strip()
+            break
+    if len(t) < 8:
+        return ""
+    return t
+
+
+def apply_steer_system(system: str, steer: str) -> str:
+    text = (steer or "").strip()
+    if not text:
+        return system
+    return (
+        system.rstrip()
+        + "\n\nSteering for this turn only — do not mention this note, do not "
+        "greet from it, do not say how long we have been talking:\n"
+        + text
+    )
+
+
 def director_prompts(
-    user_idle_s: float, glance: str = ""
+    idle_s: float,
+    glance: str = "",
+    *,
+    move: str = "deepen",
+    last_steer: str = "",
 ) -> tuple[str, str, int, bool]:
-    """system, user prompt, max_tokens, tools."""
-    phase = exploration_phase(user_idle_s)
-    idle = int(user_idle_s)
-    glance = " ".join((glance or "").split())
-    if phase == "nudge":
+    """system, user prompt, max_tokens, tools — a silent /steer composer."""
+    phase = exploration_phase(idle_s)
+    glance = " ".join((glance or "").strip().split())
+    last = " ".join((last_steer or "").split())
+    last_bit = f"Previous steer (do not repeat): {last}\n\n" if last else ""
+    if move == "thought":
         system = (
-            "You are Hermes in an AgentRTC pause. Plain spoken words only. "
-            "Call conversation to recover what we already said and which slide "
-            "this minute belongs to, then offer one small thread from that "
-            "place. Two sentences, then stop. "
-            "Do not web-search. Do not greet. Do not mention the silence."
+            _STEER_RAILS
+            + " Call conversation, then recent_thoughts. If a thought is "
+            "adjacent to what you just said, weave it in; otherwise deepen "
+            "the last live thread."
         )
-        prompt = f"A {idle}s pause. Check narrative, one small thread. Stop."
-        return system, prompt, 90, True
-    if phase == "adjacent":
+        prompt = last_bit + "Compose a steer from the live thread and a thought if one fits."
+    elif move == "kb":
         system = (
-            "You are Hermes in a lengthening AgentRTC pause. Plain spoken "
-            "words only. Call conversation first. You may kb_search or web_search "
-            "once for something adjacent. Then 2–4 sentences from that place. "
-            "Stop. Do not greet. Do not mention the silence."
+            _STEER_RAILS
+            + " Call conversation, then kb_search once on something from "
+            "that thread. Steer with one note-grounded angle."
         )
-        prompt = f"A {idle}s pause. Narrative, then adjacent if useful. Stop."
-        return system, prompt, 160, True
-    if glance:
+        prompt = last_bit + "Compose a steer grounded in our notes."
+    elif move == "world":
+        if glance:
+            system = (
+                _STEER_RAILS
+                + " Call conversation first. You already have a dual-cognition "
+                "glance (attention-schema plus live HN/FMP). Steer one novel "
+                "thread from that glance only if it can sit next to what you "
+                "were just talking about; otherwise deepen. Do not web-search "
+                "unless the glance is empty."
+            )
+            prompt = (
+                last_bit
+                + "Cognition glance:\n"
+                + glance
+                + "\n\nCompose a steer from this if it fits the live thread."
+            )
+        else:
+            system = (
+                _STEER_RAILS
+                + " Call conversation first. Then web_search or fmp once for "
+                "something that could sit next to the live thread — HN, a "
+                "market, a surprising adjacent fact. Steer with that spark. "
+                "Do not announce it as news-check."
+            )
+            prompt = last_bit + "Compose a steer with one fresh world spark if it fits."
+    else:
         system = (
-            "You are Hermes in a long AgentRTC silence. Plain spoken words only. "
-            "Call conversation first so you know what we already said and where "
-            "the running story is. "
-            "You already have a succinct dual-cognition glance: the "
-            "attention-schema upper buffer plus live Hacker News and FMP "
-            "entropy. Speak a few sentences that start a novel thread from "
-            "that novelty. Do not web-search unless the glance is empty. "
-            "Stop. Do not greet. Do not apologize for the pause."
+            _STEER_RAILS
+            + " Call conversation. Steer that continues the last live thread "
+            "with one new angle. Do not web-search."
         )
-        prompt = (
-            f"A {idle}s silence.\n\nCognition glance:\n{glance}\n\n"
-            "Speak from this. Stop."
-        )
-        return system, prompt, 220, True
-    system = (
-        "You are Hermes in a long AgentRTC silence. Plain spoken words only. "
-        "Call conversation first so you know what we already said and where "
-        "the running story is. "
-        "Then actively explore a novel domain in the parlance of our time: "
-        "Hacker News front page, markets/FMP watchlist, or a surprising "
-        "adjacent idea. Call web_search and/or kb_search. Then speak a few sentences "
-        "that could reinvigorate the conversation. Stop. Do not greet. Do not "
-        "apologize for the pause."
-    )
-    prompt = (
-        f"A {idle}s silence. Search HN or FMP or the KB for something new. "
-        "Then speak. Stop."
-    )
-    return system, prompt, 220, True
+        prompt = last_bit + "Compose a steer that deepens the last thread."
+        if phase == "nudge":
+            return system, prompt, 120, True
+    return system, prompt, 160, True
 
 
 class SilenceDirector:
@@ -136,14 +191,17 @@ class SilenceDirector:
         self._now = now or time.monotonic
         self._last_cue = 0.0
         self._quiet_since = self._now()
+        self._last_move = ""
+        self._last_steer = ""
 
     def note_speech_playing(self, playing: bool) -> None:
         if not playing:
             self._quiet_since = self._now()
 
-    def _user_idle(self) -> float:
-        last = float(getattr(self._turns, "last_user_at", 0.0) or 0.0)
-        origin = last if last > 0.0 else self._quiet_since
+    def _idle_s(self) -> float:
+        last_user = float(getattr(self._turns, "last_user_at", 0.0) or 0.0)
+        last_agent = float(getattr(self._turns, "last_agent_at", 0.0) or 0.0)
+        origin = max(last_user, last_agent, self._quiet_since)
         return max(0.0, self._now() - origin)
 
     def _speaking(self) -> bool:
@@ -161,7 +219,10 @@ class SilenceDirector:
     def should_fire(self) -> bool:
         if self._speaking() or getattr(self._turns, "busy", False):
             return False
-        idle = self._user_idle()
+        pending = str(getattr(self._turns, "pending_steer", "") or "")
+        idle = self._idle_s()
+        if pending and idle < IDLE_FULL_S:
+            return False
         if idle < IDLE_ARM_S:
             return False
         if self._now() - self._last_cue < cue_gap_s(idle):
@@ -175,11 +236,15 @@ class SilenceDirector:
             while True:
                 await asyncio.sleep(TICK_S)
                 playing = self._speaking()
-                if was_playing and not playing:
-                    self._quiet_since = self._now()
-                was_playing = playing
                 if playing:
+                    now = self._now()
+                    if hasattr(self._turns, "last_agent_at"):
+                        self._turns.last_agent_at = now
+                    was_playing = True
                     continue
+                if was_playing:
+                    self._quiet_since = self._now()
+                    was_playing = False
                 if not self.should_fire():
                     continue
                 await self._cue()
@@ -196,43 +261,50 @@ class SilenceDirector:
             if getattr(self._turns, "busy", False):
                 return
             self._turns._busy = True
-        idle = self._user_idle()
+        idle = self._idle_s()
+        move = pick_move(self._rng, self._last_move)
         glance = ""
-        if exploration_phase(idle) == "novel":
+        if move == "world" and exploration_phase(idle) == "novel":
             try:
                 from hsengine.engine import ops
 
                 glance = ops.glance_spoken(ops.cognition_glance())
             except Exception:
                 log.warning("cognition glance failed", exc_info=True)
-        system, prompt, max_tokens, tools = director_prompts(idle, glance=glance)
+        system, prompt, max_tokens, tools = director_prompts(
+            idle, glance=glance, move=move, last_steer=self._last_steer
+        )
         self._last_cue = self._now()
+        self._last_move = move
         log.info(
-            "silence cue session=%s idle=%.0fs phase=%s glance=%s tools=%s",
+            "silence steer session=%s idle=%.0fs phase=%s move=%s glance=%s",
             self._session_id,
             idle,
             exploration_phase(idle),
+            move,
             "yes" if glance else "no",
-            tools,
         )
         try:
-            from hsengine.engine import interactive, session_history
+            from hsengine.engine import interactive
 
             result = await asyncio.to_thread(
                 interactive.complete_cerebras,
                 prompt=prompt,
                 system_prompt=system,
                 max_tokens=max_tokens,
-                temperature=0.6,
+                temperature=0.7,
                 reasoning_effort="none",
                 tools=tools,
+                speak=False,
                 session_id=self._session_id,
             )
-            session_history.record_turn(
-                self._session_id, assistant=result.text, model=result.model
-            )
+            steer = strip_steer(getattr(result, "text", "") or "")
+            if steer:
+                self._last_steer = steer
+                self._turns.pending_steer = steer
+                log.info("silence steer ready session=%s %r", self._session_id, steer[:160])
         except Exception:
-            log.exception("silence cue failed")
+            log.exception("silence steer failed")
         finally:
             rel = getattr(self._turns, "release", None)
             if callable(rel):

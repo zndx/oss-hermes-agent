@@ -82,6 +82,32 @@ def test_turn_taker_writes_user_then_assistant():
     assert remembered == [("abc123", {"user": "hello there", "assistant": "hello back"})]
 
 
+def test_turn_taker_drains_pending_steer_into_the_spoken_system():
+    complete_kw: list[dict] = []
+    result = MagicMock()
+    result.text = "hello back"
+    result.model = "qwen-3.8-27b"
+
+    async def _run():
+        taker = TurnTaker(asyncio.get_running_loop(), quiet_s=0.02, session_id="abc123")
+        taker.pending_steer = "float the Lilly gap, don't clock the call"
+        with patch("hsengine.engine.session_history.record_turn", lambda *a, **k: None):
+            with patch("hsengine.engine.session_history.remember_turn", lambda *a, **k: None):
+                with patch(
+                    "hsengine.engine.interactive.complete_cerebras",
+                    lambda **k: complete_kw.append(k) or result,
+                ):
+                    taker.on_word("hello")
+                    taker.on_word("there")
+                    await asyncio.sleep(0.08)
+
+    asyncio.run(_run())
+    assert complete_kw
+    system = complete_kw[0]["system_prompt"]
+    assert "float the Lilly gap" in system
+    assert "do not mention this note" in system.lower()
+
+
 def test_prompt_history_drops_current_user_and_reports_overflow(tmp_path):
     db = SessionDB(db_path=tmp_path / "state.db")
     session_history.configure(db)

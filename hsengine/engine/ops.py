@@ -741,12 +741,12 @@ CEREBRAS_TOOLS: list[dict[str, Any]] = [
         "function": {
             "name": "conversation",
             "description": (
-                "This call's own context: recent turns plus where the "
-                "running story is at this minute. Recent turns are already "
-                "in context; call this after a pause or for the slide. "
-                "If older_count is greater than zero, earlier turns of "
-                "this call are in Hermes — use session_search, do not guess. "
-                "Casual phrasing counts."
+                "This call's own context: recent turns plus the running "
+                "story. Do not announce elapsed time. Recent turns are "
+                "already in context; call this after a pause or when you "
+                "have lost the thread. If older_count is greater than zero, "
+                "earlier turns of this call are in Hermes — use "
+                "session_search, do not guess. Casual phrasing counts."
             ),
             "parameters": {
                 "type": "object",
@@ -806,12 +806,11 @@ CEREBRAS_TOOLS: list[dict[str, Any]] = [
         "function": {
             "name": "narrative",
             "description": (
-                "Check in with the running session story. The pointer moves "
-                "with elapsed time since Connect — at minute 4 you get the "
-                "slide that belongs at minute 4, not the opening. Call this "
-                "after a pause, interruption, silence cue, or whenever you "
-                "have lost the thread. Then speak from that slide. Casual "
-                "phrasing counts; they will not name this tool."
+                "Check in with the running session story (the presenterm "
+                "place). Use it to resume a thread, not to announce the "
+                "clock. Call this after a pause or whenever you have lost "
+                "the thread. Casual phrasing counts; they will not name "
+                "this tool."
             ),
             "parameters": {
                 "type": "object",

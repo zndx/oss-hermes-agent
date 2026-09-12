@@ -107,6 +107,16 @@ def test_spoken_system_mentions_kb_and_web_search():
     assert "conversation" in text
     assert "session_search" in text
     assert "shares this same session" in text or "share this same session" in text
+    assert "this minute" not in text
+    assert "elapsed" not in text
+
+
+def test_conversation_tool_does_not_ask_to_announce_the_clock():
+    conv = next(t for t in ops.CEREBRAS_TOOLS if t["function"]["name"] == "conversation")
+    desc = conv["function"]["description"].lower()
+    assert "do not announce elapsed time" in desc
+    narr = next(t for t in ops.CEREBRAS_TOOLS if t["function"]["name"] == "narrative")
+    assert "clock" in narr["function"]["description"].lower()
 
 
 def test_dispatch_conversation(monkeypatch):
