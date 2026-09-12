@@ -87,6 +87,12 @@ hermes_bwrap_exec() {
     args+=(--bind "$hf" "$hf")
   fi
 
+  # llm-wiki writes ~/wiki. Jail HOME is /home/hermes; without this bind
+  # notes vanish when the engine process exits.
+  local wiki="${HERMES_WIKI:-$host_home/wiki}"
+  mkdir -p "$wiki"
+  args+=(--bind "$wiki" /home/hermes/wiki)
+
   # Editable signals-hsengine lives outside this checkout.
   local sp="${SIGNALS_PLUGINS:-}"
   if [[ -n "$sp" && -d "$sp" ]]; then
