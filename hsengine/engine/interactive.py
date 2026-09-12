@@ -125,6 +125,7 @@ def complete_cerebras(
     temperature: float = 0.7,
     reasoning_effort: str | None = None,
     tools: bool = True,
+    speak: bool = True,
 ) -> CompleteResult:
     key = _cerebras_key()
     model = _cfg("hermes.engine.webrtc.interactive.cerebras_model", "qwen-3.8-27b")
@@ -183,7 +184,7 @@ def complete_cerebras(
         peer="cerebras",
         capability="thinking",
     )
-    spoken = spoken_text(text)
+    spoken = spoken_text(text) if speak else ""
     if spoken:
         threading.Thread(
             target=_speak_cerebras,

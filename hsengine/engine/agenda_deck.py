@@ -64,14 +64,26 @@ def load_agenda_session(agenda_id: str) -> dict[str, str]:
     return {}
 
 
-_VOICE_OPEN = (
+_VOICE_RAILS = (
     "On a live voice call. Plain spoken words only — no markdown, HTML comments, "
     "lists as markup, code, file paths, URLs, or operator paste (BEGIN SESSION). "
-    "Never introduce yourself by name. "
-    "Casual hello, then mention two concrete ideas from the notes or session "
-    "material (not a lecture). Then ask if they have anything they want to "
-    "raise before you dive in. Do not start the first slide until they say so. "
-    "Do not invent facts that are not in the material or the notes."
+    "Never introduce yourself by name. Do not invent facts that are not in the "
+    "material or the notes you were given. Do not start a slide deck until they "
+    "ask. If the workspace notes are stale or empty, that is the first-turn "
+    "failure: say the workspace has gone quiet. Do not paper over it."
+)
+
+_INVENT_SYSTEM = (
+    "You write prompts. You do not speak to a listener. Output ONLY the prompt "
+    "another voice model will execute — no preamble, no markdown fences, no "
+    "quotes around the whole thing. The voice model hears a person on a call. "
+    "The prompt you write must ask for a spoken opening that: casual hello; "
+    "two concrete ideas drawn from the dynamic context below (or one leftover "
+    "idea if the workspace is stale); then ask if they have anything before "
+    "diving in. If the workspace is stale or empty, the prompt MUST make the "
+    "speaker say so plainly — that is the signal the workspace failed, not a "
+    "cue to invent today's news. Do not mention pipelines, Airflow, or how "
+    "the notes arrived."
 )
 
 
@@ -114,6 +126,90 @@ def pick_opening_gesture(seed: str) -> OpeningGesture:
     return OPENING_GESTURES[idx]
 
 
+def _context_blob(
+    session: dict[str, str],
+    pack: dict[str, str],
+    *,
+    agenda_id: str = "",
+) -> str:
+    from hsengine.engine.context_pack import pipeline_block
+
+    title = session.get("title") or ""
+    public = session.get("public") or ""
+    deck = session.get("deck") or ""
+    parts: list[str] = []
+    if title:
+        parts.append("Session title: " + title)
+    if agenda_id:
+        parts.append("Agenda id: " + agenda_id)
+    briefs = pipeline_block(pack)
+    if briefs:
+        parts.append(briefs)
+    elif pack.get("workspace_note"):
+        parts.append("Workspace freshness: " + pack["workspace_note"] + ".")
+    if public:
+        parts.append("Public description:\n" + public)
+    if deck:
+        parts.append("Presenterm deck (later guide, not the greeting):\n" + deck)
+    return "\n\n".join(parts)
+
+
+def propose_opening_prompt(
+    session: dict[str, str],
+    *,
+    agenda_id: str = "",
+    pipeline: dict[str, str] | None = None,
+    seed: str = "",
+) -> tuple[str, str, int]:
+    """Pass (a): ask Qwen to invent the opening prompt. Not spoken."""
+    pack = pipeline or {}
+    gesture = pick_opening_gesture(seed or agenda_id or session.get("title") or "")
+    blob = _context_blob(session, pack, agenda_id=agenda_id)
+    prompt = (
+        "Invent a novel prompt for this Connect's spoken opening.\n\n"
+        f"Gesture hint (variation only; ignore if the context wants something else): "
+        f"{gesture.id} — {gesture.instruction}\n\n"
+        "Dynamic context:\n"
+        + (blob or "Workspace freshness: empty — no live agenda or thoughts.")
+    )
+    return prompt, _INVENT_SYSTEM, 220
+
+
+def strip_invented_prompt(text: str) -> str:
+    """Keep the invented prompt only. Empty means invent failed — no canned stand-in."""
+    t = (text or "").strip()
+    if t.startswith("```"):
+        t = t.strip("`")
+        first, _, rest = t.partition("\n")
+        if first.lower() in ("text", "markdown", "md"):
+            t = rest
+        t = t.strip("`").strip()
+    if (t.startswith('"') and t.endswith('"')) or (t.startswith("'") and t.endswith("'")):
+        t = t[1:-1].strip()
+    low = t.lower()
+    for prefix in ("prompt:", "the prompt:", "opening prompt:"):
+        if low.startswith(prefix):
+            t = t[len(prefix) :].strip()
+            break
+    return t
+
+
+def spoken_opening_prompt(
+    invented: str,
+    session: dict[str, str],
+    *,
+    agenda_id: str = "",
+    pipeline: dict[str, str] | None = None,
+) -> tuple[str, str, int]:
+    """Pass (b): execute the invented prompt. The listener hears this pass."""
+    pack = pipeline or {}
+    blob = _context_blob(session, pack, agenda_id=agenda_id)
+    prompt = invented.strip()
+    if blob:
+        prompt = prompt + "\n\nContext still on hand:\n" + blob
+    return prompt, _VOICE_RAILS, 280
+
+
 def opening_prompt(
     session: dict[str, str],
     *,
@@ -121,85 +217,10 @@ def opening_prompt(
     pipeline: dict[str, str] | None = None,
     seed: str = "",
 ) -> tuple[str, str, int]:
-    """Agent-mediated Connect opening: Cerebras mediates live workspace outputs.
-
-    Fresh briefs → two ideas then the floor. Stale or empty briefs → say the
-    workspace has gone quiet (first-turn failure signal). Never invent today's
-    news to cover a stall.
-    """
-    from hsengine.engine.context_pack import pipeline_block
-
-    title = session.get("title") or "this session"
-    deck = session.get("deck") or ""
-    public = session.get("public") or ""
-    material = deck or public
-    pack = pipeline or {}
-    briefs = pipeline_block(pack)
-    gesture = pick_opening_gesture(seed or agenda_id or title)
-    state = pack.get("workspace") or ("fresh" if briefs else "empty")
-    gesture_line = " " + gesture.instruction
-    if state == "stale":
-        extra = (
-            " The workspace notes are STALE (ages below). That is a first-turn "
-            "failure: say the workspace has gone quiet, roughly how old the "
-            "notes are, float at most one idea from what you still have, then "
-            "offer the floor. Do not pretend this is today's pulse. Do not "
-            "name pipelines or how you got the notes."
-        )
-    elif state == "empty":
-        extra = (
-            " No live notes from the workspace. That is a first-turn failure: "
-            "say so plainly (the workspace has not handed anything up), then "
-            "ask if they have something anyway. Do not invent two ideas."
-        )
-    else:
-        extra = (
-            " Draw the two ideas from the background notes below when they fit; "
-            "do not name them or say how you got them."
-            if briefs
-            else ""
-        )
-    if material:
-        system = (
-            _VOICE_OPEN
-            + extra
-            + gesture_line
-            + " If a presenterm deck is present it is the later guide, not "
-            "the greeting: speaker notes are for you. If they go off-script, "
-            "answer, then resume from a slide heading when they are ready."
-        )
-        prompt = f"Open the session titled {title}.\n\nSession material:\n{material}"
-        if public and deck:
-            prompt = (
-                f"Open the session titled {title}.\n\n"
-                f"Public description:\n{public}\n\n"
-                f"Presenterm deck (full guide):\n{deck}"
-            )
-        if briefs:
-            prompt = prompt + "\n\n" + briefs
-        return prompt, system, 280
-    if agenda_id:
-        system = (
-            _VOICE_OPEN
-            + extra
-            + gesture_line
-            + " The named session body did not load. Do not invent the agenda."
-        )
-        prompt = "Open the session.\n"
-        if briefs:
-            prompt = prompt + "\n" + briefs
-        return prompt, system, 160
-    if briefs or state in ("stale", "empty"):
-        system = _VOICE_OPEN + extra + gesture_line
-        prompt = "Open the call.\n\n" + (briefs or "Workspace freshness: empty.")
-        return prompt, system, 200
-    system = (
-        _VOICE_OPEN
-        + extra
-        + " Casual hello, then ask if they have anything they wanted to talk about."
-        + gesture_line
+    """Pass (a) only. Not a spoken fallback."""
+    return propose_opening_prompt(
+        session, agenda_id=agenda_id, pipeline=pipeline, seed=seed
     )
-    return "Say a casual hello and ask if they have anything before you dive in.", system, 80
 
 
 def parse_slides(markdown: str) -> list[dict[str, Any]]:

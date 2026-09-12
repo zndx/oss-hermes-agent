@@ -3,9 +3,11 @@ from __future__ import annotations
 
 from hsengine.engine.agenda_deck import (
     OPENING_GESTURES,
-    opening_prompt,
     pick_opening_gesture,
+    propose_opening_prompt,
+    spoken_opening_prompt,
     split_public_deck,
+    strip_invented_prompt,
 )
 
 
@@ -25,23 +27,23 @@ def test_split_keeps_deck_off_the_public_lede():
 
 
 def test_opening_uses_full_deck_when_present():
-    prompt, system, max_tokens = opening_prompt(
+    prompt, system, max_tokens = propose_opening_prompt(
         {
             "title": "Watchlist after the tape",
             "public": "Decide whether the book moves.",
             "deck": "Opening\n===\n\nWould you change the book today?\n",
         }
     )
+    assert "Invent a novel prompt" in prompt
     assert "Watchlist after the tape" in prompt
     assert "Would you change the book" in prompt
-    assert "Gesture " in system
-    assert "before you dive" in system.lower() or "before we dive" in system.lower() or "go first" in system.lower() or "somewhere else" in system.lower() or "bring up" in system.lower()
+    assert "You write prompts" in system
     assert "You are Hermes" not in system
     assert max_tokens > 48
 
 
 def test_opening_without_deck_uses_public_lede():
-    prompt, system, max_tokens = opening_prompt(
+    prompt, system, max_tokens = propose_opening_prompt(
         {
             "title": "Discover coherence check-in",
             "public": "Would you send a colleague to this screen today?",
@@ -50,7 +52,7 @@ def test_opening_without_deck_uses_public_lede():
     )
     assert "Discover coherence check-in" in prompt
     assert "colleague" in prompt
-    assert "Greet the listener" not in prompt
+    assert "You write prompts" in system
     assert max_tokens > 48
 
 
@@ -76,16 +78,15 @@ def test_narrative_at_minute_four_is_not_always_the_opening():
 
 
 def test_opening_without_material_still_offers_the_floor():
-    prompt, system, max_tokens = opening_prompt({})
-    assert "You are Hermes" not in system and "Hermes" not in prompt
-    assert "pipeline" not in system.lower()
-    assert "Gesture " in system
-    assert "first-turn failure" in system.lower() or "not handed" in system.lower()
+    prompt, system, max_tokens = propose_opening_prompt({})
+    assert "You write prompts" in system
+    assert "empty" in prompt.lower()
+    assert "You are Hermes" not in system
     assert max_tokens >= 80
 
 
 def test_stale_workspace_is_named_in_the_opening():
-    prompt, system, _ = opening_prompt(
+    prompt, system, _ = propose_opening_prompt(
         {},
         pipeline={
             "workspace": "stale",
@@ -93,9 +94,27 @@ def test_stale_workspace_is_named_in_the_opening():
             "thoughts_spoken": "State as a hidden control plane on the edge.",
         },
     )
-    assert "gone quiet" in system.lower() or "STALE" in system
-    assert "45h" in prompt or "stale" in prompt.lower()
-    assert "Do not pretend" in system or "do not pretend" in system.lower()
+    assert "stale" in prompt.lower() or "45h" in prompt
+    assert "say so plainly" in system.lower() or "workspace failed" in system.lower()
+
+
+def test_strip_invented_prompt_is_empty_when_invent_fails():
+    assert strip_invented_prompt("") == ""
+    assert strip_invented_prompt("   ") == ""
+    assert "hello" in strip_invented_prompt('```\nSay hello and offer the floor.\n```').lower()
+
+
+def test_spoken_pass_executes_the_invented_prompt_not_a_canned_one():
+    invented = "Greet them, mention cell state and the retrospective, then ask if they want to go first."
+    prompt, system, _ = spoken_opening_prompt(
+        invented,
+        {"title": "Watchlist"},
+        pipeline={"thoughts_spoken": "State as a hidden control plane on the edge."},
+    )
+    assert prompt.startswith(invented)
+    assert "cell state" in prompt.lower() or "control plane" in prompt.lower()
+    assert "You write prompts" not in system
+    assert "plain spoken" in system.lower()
 
 
 def test_opening_gesture_is_stable_for_a_session_and_varies_across_sessions():
@@ -108,7 +127,7 @@ def test_opening_gesture_is_stable_for_a_session_and_varies_across_sessions():
 
 
 def test_opening_uses_pipeline_briefs_when_there_is_no_session_material():
-    prompt, system, max_tokens = opening_prompt(
+    prompt, system, max_tokens = propose_opening_prompt(
         {},
         pipeline={
             "agenda_spoken": "Today is the AgentRTC retrospective.",
@@ -117,14 +136,12 @@ def test_opening_uses_pipeline_briefs_when_there_is_no_session_material():
     )
     assert "AgentRTC retrospective" in prompt
     assert "verifiable cell state" in prompt
-    assert "You are Hermes" not in system
-    assert "Gesture " in system
-    assert "Airflow" not in system
+    assert "You write prompts" in system
     assert max_tokens > 48
 
 
 def test_opening_with_deck_still_carries_pipeline_briefs():
-    prompt, system, _ = opening_prompt(
+    prompt, system, _ = propose_opening_prompt(
         {
             "title": "Watchlist after the tape",
             "public": "Decide whether the book moves.",
@@ -134,6 +151,4 @@ def test_opening_with_deck_still_carries_pipeline_briefs():
     )
     assert "Would you change the book" in prompt
     assert "molecular partner" in prompt
-    assert "You are Hermes" not in system
-    assert "do not name them" in system.lower()
-    assert "Gesture " in system
+    assert "You write prompts" in system

@@ -248,7 +248,12 @@ class WebRtcHub:
 
         async def _opening() -> None:
             try:
-                from hsengine.engine.agenda_deck import load_agenda_session, opening_prompt
+                from hsengine.engine.agenda_deck import (
+                    load_agenda_session,
+                    propose_opening_prompt,
+                    spoken_opening_prompt,
+                    strip_invented_prompt,
+                )
                 from hsengine.engine.context_pack import conversational_context
 
                 aid = self._agenda.get(session_id, "")
@@ -269,17 +274,35 @@ class WebRtcHub:
                     "webrtc opening pack=%s",
                     ",".join(sorted(pack)) or "empty",
                 )
-                prompt, system, max_tokens = opening_prompt(
+                invent_u, invent_s, invent_n = propose_opening_prompt(
                     session, agenda_id=aid, pipeline=pack, seed=session_id
+                )
+                invented_raw = await asyncio.to_thread(
+                    interactive.complete_cerebras,
+                    prompt=invent_u,
+                    system_prompt=invent_s,
+                    max_tokens=invent_n,
+                    temperature=0.7,
+                    reasoning_effort="none",
+                    tools=False,
+                    speak=False,
+                )
+                invented = strip_invented_prompt(invented_raw.text)
+                if not invented:
+                    raise RuntimeError("opening invent returned empty; no fallback")
+                log.info("webrtc opening invented prompt=%s", invented[:240])
+                speak_u, speak_s, speak_n = spoken_opening_prompt(
+                    invented, session, agenda_id=aid, pipeline=pack
                 )
                 result = await asyncio.to_thread(
                     interactive.complete_cerebras,
-                    prompt=prompt,
-                    system_prompt=system,
-                    max_tokens=max_tokens,
+                    prompt=speak_u,
+                    system_prompt=speak_s,
+                    max_tokens=speak_n,
                     temperature=0.55,
                     reasoning_effort="none",
                     tools=False,
+                    speak=True,
                 )
                 from hsengine.engine import session_history
 
