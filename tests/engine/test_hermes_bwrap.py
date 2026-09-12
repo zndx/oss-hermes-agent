@@ -80,8 +80,10 @@ class HermesBwrapTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             tmp_path = Path(tmp)
             hermes_home = tmp_path / "hermes"
-            target = tmp_path / "checkout" / "signals-listen"
+            repo = tmp_path / "checkout"
+            target = repo / "plugins" / "signals-listen"
             (target / "dashboard").mkdir(parents=True)
+            (repo / "hsengine").mkdir()
             (hermes_home / "plugins").mkdir(parents=True)
             (hermes_home / "plugins" / "signals-listen").symlink_to(target)
             proc = _run(
@@ -93,10 +95,12 @@ class HermesBwrapTests(unittest.TestCase):
                     "HERMES_ROOT": str(ROOT),
                     "HERMES_HOME": str(hermes_home),
                     "HOME": str(tmp_path),
+                    "SIGNALS_PLUGINS": "",
                 },
             )
             self.assertEqual(proc.returncode, 0, proc.stderr)
             self.assertIn(str(target), proc.stderr)
+            self.assertIn(str(repo), proc.stderr)
 
     def test_signals_plugins_tree_is_bound(self) -> None:
         import tempfile

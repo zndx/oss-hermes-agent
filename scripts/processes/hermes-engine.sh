@@ -18,6 +18,7 @@ export HERMES_ADVERTISE_HOST="${HERMES_ADVERTISE_HOST:-${SIGNALS_ADVERTISE_HOST:
 export HERMES_ENGINE_TARGET="${HERMES_ENGINE_TARGET:-127.0.0.1:50651}"
 export HF_HOME="${HF_HOME:-/raid/cache/huggingface}"
 export SIGNALS_ENGINE_TARGET="${SIGNALS_ENGINE_TARGET:-127.0.0.1:50551}"
+export SIGNALS_PLUGINS="${SIGNALS_PLUGINS:-$HOME/local/src/wxs/signals-plugins}"
 export PYTHONPATH=""
 
 # shellcheck source=../lib/hermes-bwrap.sh

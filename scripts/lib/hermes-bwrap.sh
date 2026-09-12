@@ -95,13 +95,22 @@ hermes_bwrap_exec() {
 
   # install.sh developer checkouts symlink $HERMES_HOME/plugins/<name> at a
   # tree outside the jail (this checkout + ~/.hermes). Follow those links.
-  local dest src
+  # If the target is <repo>/plugins/<name> and that repo ships hsengine
+  # (signals-plugins), bind the repo root too — editable signals-hsengine
+  # lives there, not under plugins/signals-listen.
+  local dest src repo
   if [[ -d "$host_hermes/plugins" ]]; then
     for dest in "$host_hermes/plugins"/*; do
       [[ -L "$dest" ]] || continue
       src="$(readlink -f "$dest" 2>/dev/null || true)"
       [[ -n "$src" && -d "$src" ]] || continue
       args+=(--bind "$src" "$src")
+      if [[ "$(basename "$(dirname "$src")")" == "plugins" ]]; then
+        repo="$(dirname "$(dirname "$src")")"
+        if [[ -d "$repo/hsengine" ]]; then
+          args+=(--bind "$repo" "$repo")
+        fi
+      fi
     done
   fi
 
