@@ -68,3 +68,11 @@ def test_moshi_ld_path_includes_cuda():
     path = _ld_library_path(None)
     assert "/usr/local/cuda/lib64" in path
     assert "nvidia-libs" in path
+
+
+def test_stt_config_is_the_packaged_toml():
+    from hsengine.engine.moshi_supervisor import stt_config_path
+
+    path = stt_config_path()
+    assert path.is_file()
+    assert path.name == "stt-1b.toml"

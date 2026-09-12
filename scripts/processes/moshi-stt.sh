@@ -17,6 +17,8 @@ export PATH="${CUDA_HOME}/bin:${PATH}"
 export HF_HOME="${HF_HOME:-/raid/cache/huggingface}"
 export PYTHONPATH="${ROOT}${PYTHONPATH:+:$PYTHONPATH}"
 export PYTHONUNBUFFERED=1
+export HERMES_ROOT="${HERMES_ROOT:-$ROOT}"
+export DEVENV_ROOT="${DEVENV_ROOT:-$ROOT}"
 
 PY="${ROOT}/.devenv/state/venv/bin/python"
 [[ -x "$PY" ]] || {
