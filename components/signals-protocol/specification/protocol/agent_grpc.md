@@ -50,6 +50,15 @@ collided with live `FMP`) returns the light `AgentHint[]` (id, name, version,
 transport kind, model capabilities, billing) so a launcher or planner can find agents across
 the federation by walking `PEERS`; `ListAgents` is the full offer.
 
+**Addressing.** Callers MUST NOT configure a per-agent engine host
+(`HERMES_ENGINE_TARGET`, `HERMES_AGENT_TARGET`, …). The hosting engine is
+found by the [surfaces.md](surfaces.md) walk: seed `SIGNALS_ENGINE_TARGET`
+(and any configured lattice peers), `Engine/Status`, one-hop
+`ServerQuery PEERS`, then `AGENTS` / `ListAgents`. `PeerHint.target` is an
+opaque `host:port` — keep a foreign host; do not rewrite it onto the
+walker. Hosting engines **Announce** to the directory so they appear on
+that walk.
+
 ## Rules
 
 - **Hosting.** The engine that hosts an agent runs it. The agent's own transport — an ACP
