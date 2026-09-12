@@ -155,6 +155,7 @@ class TurnTaker:
         try:
             log.info("user utterance %r", text)
             from hsengine.engine import interactive, session_history
+            from hsengine.engine.named_bots import ripley_spoken_system
             from hsengine.engine.webrtc_silence import apply_steer_system
 
             session_history.record_turn(self._session_id, user=text)
@@ -163,7 +164,7 @@ class TurnTaker:
             result = await asyncio.to_thread(
                 interactive.complete_cerebras,
                 prompt=text,
-                system_prompt=apply_steer_system(SPOKEN_SYSTEM, steer),
+                system_prompt=apply_steer_system(ripley_spoken_system(), steer),
                 max_tokens=280,
                 temperature=0.5,
                 reasoning_effort="none",

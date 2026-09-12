@@ -271,13 +271,10 @@ class SilenceDirector:
                 glance = ops.glance_spoken(ops.cognition_glance())
             except Exception:
                 log.warning("cognition glance failed", exc_info=True)
-        system, prompt, max_tokens, tools = director_prompts(
-            idle, glance=glance, move=move, last_steer=self._last_steer
-        )
         self._last_cue = self._now()
         self._last_move = move
         log.info(
-            "silence steer session=%s idle=%.0fs phase=%s move=%s glance=%s",
+            "silence bishop session=%s idle=%.0fs phase=%s move=%s glance=%s",
             self._session_id,
             idle,
             exploration_phase(idle),
@@ -285,26 +282,35 @@ class SilenceDirector:
             "yes" if glance else "no",
         )
         try:
-            from hsengine.engine import interactive
+            from hsengine.engine import interactive, session_history
+            from hsengine.engine.named_bots import bishop_run
 
-            result = await asyncio.to_thread(
-                interactive.complete_cerebras,
-                prompt=prompt,
-                system_prompt=system,
-                max_tokens=max_tokens,
-                temperature=0.7,
-                reasoning_effort="none",
-                tools=tools,
-                speak=False,
+            outcome = await asyncio.to_thread(
+                bishop_run,
                 session_id=self._session_id,
+                idle_s=idle,
+                last_steer=self._last_steer,
+                move=move,
+                glance=glance,
             )
-            steer = strip_steer(getattr(result, "text", "") or "")
-            if steer:
-                self._last_steer = steer
-                self._turns.pending_steer = steer
-                log.info("silence steer ready session=%s %r", self._session_id, steer[:160])
+            if outcome.steer:
+                self._last_steer = outcome.steer
+                self._turns.pending_steer = outcome.steer
+                log.info(
+                    "bishop steer ready session=%s %r",
+                    self._session_id,
+                    outcome.steer[:160],
+                )
+            if outcome.monologue:
+                spoken = interactive.spoken_text(outcome.monologue)
+                if spoken:
+                    interactive._speak_cerebras(spoken)
+                    session_history.record_turn(
+                        self._session_id, assistant=spoken, model="ripley"
+                    )
+                    log.info("bishop monologue spoken session=%s", self._session_id)
         except Exception:
-            log.exception("silence steer failed")
+            log.exception("bishop silent turn failed")
         finally:
             rel = getattr(self._turns, "release", None)
             if callable(rel):

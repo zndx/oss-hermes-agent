@@ -353,6 +353,12 @@ def enter(owner: str = "webrtc") -> None:
     with _mu:
         _active = True
         _lease = lease
+    try:
+        from hsengine.engine.named_bots import ensure_bots
+
+        ensure_bots()
+    except Exception:
+        log.warning("named bots ensure failed", exc_info=True)
     log.info(
         "agent-rtc interactive posture on (activity %s declared; YK claims asserted while RUNNING)",
         lease.activity_id,
