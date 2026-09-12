@@ -121,22 +121,44 @@ def opening_prompt(
     pipeline: dict[str, str] | None = None,
     seed: str = "",
 ) -> tuple[str, str, int]:
-    """(user prompt, system prompt, max_tokens) for the Connect opening."""
+    """Agent-mediated Connect opening: Cerebras mediates live workspace outputs.
+
+    Fresh briefs → two ideas then the floor. Stale or empty briefs → say the
+    workspace has gone quiet (first-turn failure signal). Never invent today's
+    news to cover a stall.
+    """
     from hsengine.engine.context_pack import pipeline_block
 
     title = session.get("title") or "this session"
     deck = session.get("deck") or ""
     public = session.get("public") or ""
     material = deck or public
-    briefs = pipeline_block(pipeline)
+    pack = pipeline or {}
+    briefs = pipeline_block(pack)
     gesture = pick_opening_gesture(seed or agenda_id or title)
-    extra = (
-        " Draw the two ideas from the background notes below when they fit; "
-        "do not name them or say how you got them."
-        if briefs
-        else ""
-    )
+    state = pack.get("workspace") or ("fresh" if briefs else "empty")
     gesture_line = " " + gesture.instruction
+    if state == "stale":
+        extra = (
+            " The workspace notes are STALE (ages below). That is a first-turn "
+            "failure: say the workspace has gone quiet, roughly how old the "
+            "notes are, float at most one idea from what you still have, then "
+            "offer the floor. Do not pretend this is today's pulse. Do not "
+            "name pipelines or how you got the notes."
+        )
+    elif state == "empty":
+        extra = (
+            " No live notes from the workspace. That is a first-turn failure: "
+            "say so plainly (the workspace has not handed anything up), then "
+            "ask if they have something anyway. Do not invent two ideas."
+        )
+    else:
+        extra = (
+            " Draw the two ideas from the background notes below when they fit; "
+            "do not name them or say how you got them."
+            if briefs
+            else ""
+        )
     if material:
         system = (
             _VOICE_OPEN
@@ -167,14 +189,14 @@ def opening_prompt(
         if briefs:
             prompt = prompt + "\n" + briefs
         return prompt, system, 160
-    if briefs:
+    if briefs or state in ("stale", "empty"):
         system = _VOICE_OPEN + extra + gesture_line
-        prompt = "Open the call.\n\n" + briefs
+        prompt = "Open the call.\n\n" + (briefs or "Workspace freshness: empty.")
         return prompt, system, 200
     system = (
         _VOICE_OPEN
-        + " No notes loaded. Casual hello, then ask if they have anything "
-        "they wanted to talk about."
+        + extra
+        + " Casual hello, then ask if they have anything they wanted to talk about."
         + gesture_line
     )
     return "Say a casual hello and ask if they have anything before you dive in.", system, 80

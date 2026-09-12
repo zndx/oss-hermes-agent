@@ -77,12 +77,25 @@ def test_narrative_at_minute_four_is_not_always_the_opening():
 
 def test_opening_without_material_still_offers_the_floor():
     prompt, system, max_tokens = opening_prompt({})
-    assert "casual hello" in prompt.lower()
-    assert "before you dive" in prompt.lower() or "anything" in prompt.lower()
     assert "You are Hermes" not in system and "Hermes" not in prompt
     assert "pipeline" not in system.lower()
     assert "Gesture " in system
+    assert "first-turn failure" in system.lower() or "not handed" in system.lower()
     assert max_tokens >= 80
+
+
+def test_stale_workspace_is_named_in_the_opening():
+    prompt, system, _ = opening_prompt(
+        {},
+        pipeline={
+            "workspace": "stale",
+            "workspace_note": "stale (thoughts 45h)",
+            "thoughts_spoken": "State as a hidden control plane on the edge.",
+        },
+    )
+    assert "gone quiet" in system.lower() or "STALE" in system
+    assert "45h" in prompt or "stale" in prompt.lower()
+    assert "Do not pretend" in system or "do not pretend" in system.lower()
 
 
 def test_opening_gesture_is_stable_for_a_session_and_varies_across_sessions():
