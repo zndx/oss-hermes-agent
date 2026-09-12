@@ -87,6 +87,12 @@ hermes_bwrap_exec() {
     args+=(--bind "$hf" "$hf")
   fi
 
+  # Editable signals-hsengine lives outside this checkout.
+  local sp="${SIGNALS_PLUGINS:-}"
+  if [[ -n "$sp" && -d "$sp" ]]; then
+    args+=(--bind "$sp" "$sp")
+  fi
+
   # install.sh developer checkouts symlink $HERMES_HOME/plugins/<name> at a
   # tree outside the jail (this checkout + ~/.hermes). Follow those links.
   local dest src

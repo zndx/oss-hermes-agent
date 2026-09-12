@@ -98,6 +98,28 @@ class HermesBwrapTests(unittest.TestCase):
             self.assertEqual(proc.returncode, 0, proc.stderr)
             self.assertIn(str(target), proc.stderr)
 
+    def test_signals_plugins_tree_is_bound(self) -> None:
+        import tempfile
+
+        bwrap = ROOT / ".devenv/profile/bin/bwrap"
+        if not bwrap.is_file():
+            self.skipTest("devenv bubblewrap not installed yet")
+        with tempfile.TemporaryDirectory() as tmp:
+            plugins = Path(tmp) / "signals-plugins"
+            plugins.mkdir()
+            proc = _run(
+                "hermes_bwrap_exec /bin/true",
+                env={
+                    "HERMES_BWRAP": "1",
+                    "HERMES_BWRAP_PRINT": "1",
+                    "HERMES_BWRAP_BIN": str(bwrap),
+                    "HERMES_ROOT": str(ROOT),
+                    "SIGNALS_PLUGINS": str(plugins),
+                },
+            )
+            self.assertEqual(proc.returncode, 0, proc.stderr)
+            self.assertIn(str(plugins), proc.stderr)
+
     def test_nvidia_nodes_are_bound_when_present(self) -> None:
         if not any(Path("/dev").glob("nvidia*")):
             self.skipTest("no nvidia device nodes")
