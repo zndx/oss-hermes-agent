@@ -8,7 +8,9 @@ Wants=network-online.target
 Type=oneshot
 RemainAfterExit=yes
 WorkingDirectory=%h/local/src/oss/hermes-agent
+Environment=HOME=%h
 Environment=PATH=%h/.nix-profile/bin:/nix/var/nix/profiles/default/bin:/usr/bin:/bin
+Environment=SIGNALS_PLUGINS=%h/local/src/wxs/signals-plugins
 ExecStart=%h/.nix-profile/bin/devenv up -d
 ExecStop=%h/.nix-profile/bin/devenv processes down
 

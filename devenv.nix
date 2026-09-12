@@ -158,7 +158,8 @@ in
     SIGNALS_ENGINE_TARGET = "127.0.0.1:50551";
     HERMES_ENGINE_TARGET = "127.0.0.1:50651";
     # Sidecar engine SoR: signals-plugins (not this tree). Override if needed.
-    SIGNALS_PLUGINS = config.env.HOME + "/local/src/wxs/signals-plugins";
+    # builtins.getEnv: config.env.HOME is not defined (systemd devenv up).
+    SIGNALS_PLUGINS = (builtins.getEnv "HOME") + "/local/src/wxs/signals-plugins";
     # Files UI stays inside this checkout (not $HOME).
     HERMES_DASHBOARD_FILES_ROOT = config.devenv.root;
     RUSTFS_DATA_DIR = rustfsDataDir;
