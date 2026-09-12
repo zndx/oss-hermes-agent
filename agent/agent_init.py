@@ -2236,14 +2236,14 @@ def init_agent(
     agent.skip_background_review = bool(skip_background_review)
     agent.log_prefix = f"{log_prefix} " if log_prefix else ""
     try:
-        from agent.interactive_cerebras import overlay_runtime
+        from agent.session_runtime import overlay_runtime
 
         _ov = overlay_runtime()
     except Exception:
         _ov = None
     if _ov:
-        # AgentRTC interactive: Hermes proper (and its children) use Cerebras
-        # for fast reasoning. Thinking stays on Gaius.
+        # Session overlay (voice call, lattice Activity, plugin): a different
+        # endpoint than the process default for this agent and its children.
         base_url = _ov["base_url"]
         api_key = _ov["api_key"]
         provider = _ov["provider"]

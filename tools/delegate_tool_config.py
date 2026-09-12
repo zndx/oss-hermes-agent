@@ -508,7 +508,7 @@ def _resolve_child_runtime(
 
     if not override_provider:
         try:
-            from agent.interactive_cerebras import overlay_runtime
+            from agent.session_runtime import overlay_runtime
 
             _ov = overlay_runtime()
         except Exception:

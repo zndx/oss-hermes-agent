@@ -742,6 +742,26 @@ class PluginContext:
         logger.debug("Plugin '%s' registered memory provider: %s", self.manifest.name,
                      getattr(provider, "name", "?"))
 
+    def register_session_runtime_overlay(self, fn) -> Optional[PluginRegistration]:
+        """Register a session-scoped provider/model overlay (first non-None dict wins).
+
+        Used when a live session needs a different endpoint than the process
+        default (voice call, lattice Activity). Not an env var.
+        """
+        if not callable(fn):
+            logger.warning("Plugin '%s' session runtime overlay is not callable", self.manifest.name)
+            return None
+        from agent.session_runtime import register_overlay
+
+        register_overlay(fn)
+        handle = self._track(
+            "session_runtime_overlay",
+            getattr(fn, "__name__", "overlay"),
+            lambda: None,
+        )
+        logger.debug("Plugin '%s' registered session runtime overlay", self.manifest.name)
+        return handle
+
     @_serialized_replacement
     def register_dashboard_auth_provider(self, provider) -> Optional[PluginRegistration]:
         """Register a :class:`hermes_cli.dashboard_auth.DashboardAuthProvider` for the dashboard
