@@ -4,6 +4,12 @@ Session-scoped: in-process interactive posture, or a Signals
 ``interactive_session`` Activity. Not an env var. Subagents inherit
 because ``_resolve_child_runtime`` applies the same overlay unless the
 caller pinned a provider. Thinking stays on Gaius.
+
+The overlay is also registered on the generic session-runtime seam
+(``agent.session_runtime`` / entry point ``hermes_agent.session_runtime``).
+The implementation is moving to ``signals-hsengine`` (``hsengine.overlay``);
+this module stays until the vendored ``hsengine/`` tree is deleted from
+this checkout.
 """
 from __future__ import annotations
 
