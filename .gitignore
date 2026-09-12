@@ -1,7 +1,6 @@
 .DS_Store
 grok_generated_video.mp4
 grok-src-img.jpg
-hsengine/media/fixtures/*.mp4
 /venv/
 /venv.old/
 /venv.stale.runtime-*/

@@ -2,6 +2,13 @@
 from __future__ import annotations
 
 from agent.interactive_cerebras import overlay_runtime, session_wants_cerebras
+from hsengine.overlay import overlay_runtime as impl_overlay
+from hsengine.overlay import session_wants_cerebras as impl_wants
+
+
+def test_shim_reexports_signals_hsengine():
+    assert overlay_runtime is impl_overlay
+    assert session_wants_cerebras is impl_wants
 
 
 def test_session_wants_cerebras_follows_in_process_flag(monkeypatch):
@@ -16,12 +23,12 @@ def test_session_wants_cerebras_follows_in_process_flag(monkeypatch):
 
 
 def test_overlay_runtime_none_when_not_interactive(monkeypatch):
-    monkeypatch.setattr("agent.interactive_cerebras.session_wants_cerebras", lambda: False)
+    monkeypatch.setattr("hsengine.overlay.session_wants_cerebras", lambda: False)
     assert overlay_runtime() is None
 
 
 def test_overlay_runtime_pins_cerebras(monkeypatch):
-    monkeypatch.setattr("agent.interactive_cerebras.session_wants_cerebras", lambda: True)
+    monkeypatch.setattr("hsengine.overlay.session_wants_cerebras", lambda: True)
     monkeypatch.setattr(
         "hsengine.engine.interactive._cerebras_key", lambda: "sk-test"
     )

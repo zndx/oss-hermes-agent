@@ -73,13 +73,14 @@ in
       sync = {
         enable = true;
         # Perihelion: core Hermes + Signals-owned extras only (see
-        # hsengine.surface.LOCAL_EXTRAS). Never `[all]`, never upstream
+        # signals-hsengine hsengine.surface.LOCAL_EXTRAS). Never `[all]`, never upstream
         # extras/plugins. Expand LOCAL_EXTRAS when the lattice grows.
         extras = [ "signals" ];
         allExtras = false;
         # devenv defaults to `--no-install-workspace`, which syncs the
         # dependencies but skips hermes-agent itself — no `hermes` on PATH.
-        arguments = [ "--frozen" ];
+        # --inexact keeps the editable signals-hsengine sidecar (not in uv.lock).
+        arguments = [ "--frozen" "--inexact" ];
       };
     };
   };
@@ -156,6 +157,8 @@ in
     UV_PYTHON_DOWNLOADS = "never";
     SIGNALS_ENGINE_TARGET = "127.0.0.1:50551";
     HERMES_ENGINE_TARGET = "127.0.0.1:50651";
+    # Sidecar engine SoR: signals-plugins (not this tree). Override if needed.
+    SIGNALS_PLUGINS = config.env.HOME + "/local/src/wxs/signals-plugins";
     # Files UI stays inside this checkout (not $HOME).
     HERMES_DASHBOARD_FILES_ROOT = config.devenv.root;
     RUSTFS_DATA_DIR = rustfsDataDir;
@@ -340,9 +343,25 @@ in
     cd "${config.devenv.root}" && npm install
   '';
 
+  tasks."devenv:python:signals-hsengine" = {
+    exec = ''
+      set -euo pipefail
+      sp="''${SIGNALS_PLUGINS:-}"
+      if [ -z "$sp" ] || [ ! -f "$sp/pyproject.toml" ]; then
+        echo "DENY: SIGNALS_PLUGINS missing pyproject.toml: ''${sp:-unset}" >&2
+        exit 1
+      fi
+      uv pip install -e "$sp"
+    '';
+    after = [ "devenv:python:uv" ];
+  };
+
   # Keep this cheap: `hermes version` imports the whole CLI and runs an update
   # check, which is not worth paying for on every shell entry.
   enterShell = ''
+    if [ -n "''${SIGNALS_PLUGINS:-}" ] && [ -f "''${SIGNALS_PLUGINS}/pyproject.toml" ]; then
+      uv pip install -e "$SIGNALS_PLUGINS" >/dev/null || echo "warn: signals-hsengine not installed from $SIGNALS_PLUGINS"
+    fi
     echo "Hermes Agent dev shell (python $(python --version | cut -d' ' -f2))"
     echo "  hermes                 interactive CLI"
     echo "  hermes version         version / environment info"

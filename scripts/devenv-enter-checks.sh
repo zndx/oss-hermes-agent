@@ -4,6 +4,10 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+if [[ -e "$ROOT/hsengine" ]]; then
+  echo "DENY: $ROOT/hsengine shadows the signals-hsengine package. Remove the leftover tree." >&2
+  exit 1
+fi
 HOME_ROOT="${HERMES_HOME:-$HOME/.hermes}"
 META="$HOME_ROOT/plugins/.install-metadata.json"
 STAMP="${DEVENV_STATE:-$ROOT/.devenv/state}/enter-update-check.stamp"

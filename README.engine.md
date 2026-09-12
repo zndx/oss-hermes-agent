@@ -1,5 +1,9 @@
 # hsengine — Hermes as a signals `agent` peer
 
+The engine package lives in **signals-plugins** (`signals-hsengine`).
+Install editable: `uv pip install -e $SIGNALS_PLUGINS`. This file is the
+local operational notes for running it against this checkout.
+
 Local gRPC coordination engine that presents this Hermes checkout to the
 [zndx signals federation](components/signals-protocol/README.md). Patterned
 after Metabase (`mbengine`, an external non-Signals project) for the lattice
