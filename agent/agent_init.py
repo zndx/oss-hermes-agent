@@ -2235,6 +2235,21 @@ def init_agent(
     # Skips the end-of-turn review fork (~30K tokens/event); one switch for both review paths.
     agent.skip_background_review = bool(skip_background_review)
     agent.log_prefix = f"{log_prefix} " if log_prefix else ""
+    try:
+        from agent.interactive_cerebras import overlay_runtime
+
+        _ov = overlay_runtime()
+    except Exception:
+        _ov = None
+    if _ov:
+        # AgentRTC interactive: Hermes proper (and its children) use Cerebras
+        # for fast reasoning. Thinking stays on Gaius.
+        base_url = _ov["base_url"]
+        api_key = _ov["api_key"]
+        provider = _ov["provider"]
+        model = _ov["model"]
+        api_mode = _ov.get("api_mode") or "chat_completions"
+        agent.model = model
     # Effective base URL for feature detection (prompt caching, reasoning, etc.)
     agent.base_url = base_url or ""
     provider_name = provider.strip().lower() if isinstance(provider, str) and provider.strip() else None

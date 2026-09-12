@@ -479,6 +479,21 @@ def _resolve_child_runtime(
     except Exception as exc:
         logger.debug("Could not load delegation reasoning_effort: %s", exc)
 
+    if not override_provider:
+        try:
+            from agent.interactive_cerebras import overlay_runtime
+
+            _ov = overlay_runtime()
+        except Exception:
+            _ov = None
+        if _ov:
+            effective_base_url = _ov["base_url"]
+            effective_provider = _ov["provider"]
+            effective_model = _ov["model"]
+            parent_api_key = _ov["api_key"]
+            effective_api_mode = _ov.get("api_mode") or "chat_completions"
+            override_api_key = None
+
     kwargs: Dict[str, Any] = {
         "base_url": effective_base_url, "api_key": override_api_key or parent_api_key, "model": effective_model,
         "provider": effective_provider,

@@ -31,7 +31,9 @@ def complete(
 
     from hsengine.engine import interactive
 
-    if interactive.is_active() and cap in ("agent", "thinking"):
+    # Dialog / Hermes-agent fast reasoning is Cerebras while AgentRTC is on.
+    # Thinking stays on Gaius (GPUs 0–3).
+    if interactive.is_active() and cap in ("agent", "instruct"):
         return interactive.complete_cerebras(
             prompt=prompt,
             system_prompt=system_prompt,

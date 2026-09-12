@@ -74,6 +74,16 @@ def test_dispatch_fmp(monkeypatch):
     assert data["hits"][0]["symbol"] == "SLB"
     names = [t["function"]["name"] for t in ops.CEREBRAS_TOOLS]
     assert "fmp" in names
+    assert "hermes" in names
+
+
+def test_dispatch_hermes_requires_interactive(monkeypatch):
+    monkeypatch.setattr(
+        "agent.interactive_cerebras.overlay_runtime", lambda: None
+    )
+    data = json.loads(ops.dispatch("hermes", {"prompt": "list skills"}))
+    assert data["ok"] is False
+    assert "not in force" in data["error"]
 
 
 def test_glance_spoken_uses_buffer_note():

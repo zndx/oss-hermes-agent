@@ -449,6 +449,32 @@ def cognition_glance(*, stream: str = "buffer", limit: int = 6) -> dict[str, Any
     return search(query="", stream=kind, limit=limit)
 
 
+def hermes(*, prompt: str) -> dict[str, Any]:
+    """Run Hermes proper (full tools + subagents) on Cerebras while AgentRTC is on."""
+    q = " ".join((prompt or "").split())
+    if not q:
+        return {"ok": False, "error": "empty prompt"}
+    try:
+        from agent.interactive_cerebras import overlay_runtime
+        from run_agent import AIAgent
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+    ov = overlay_runtime()
+    if not ov:
+        return {"ok": False, "error": "interactive AgentRTC is not in force"}
+    agent = AIAgent(
+        base_url=ov["base_url"],
+        api_key=ov["api_key"],
+        provider=ov["provider"],
+        model=ov["model"],
+        api_mode=ov.get("api_mode") or "chat_completions",
+        quiet_mode=True,
+        skip_background_review=True,
+    )
+    text = agent.chat(q)
+    return {"ok": True, "text": text, "model": ov["model"]}
+
+
 def glance_spoken(d: dict[str, Any] | None) -> str:
     """Plain-speech glance for a silence cue. Empty if the buffer was silent."""
     if not d or not d.get("ok"):
@@ -727,6 +753,29 @@ CEREBRAS_TOOLS: list[dict[str, Any]] = [
     {
         "type": "function",
         "function": {
+            "name": "hermes",
+            "description": (
+                "Hermes proper: the full agent (skills, terminal, files, "
+                "browser, memory, delegate_task / subagents). Use when the "
+                "voice tools are not enough. Subagents also run on Cerebras "
+                "while this AgentRTC session is in force. Speak the result."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "prompt": {
+                        "type": "string",
+                        "description": "What Hermes should do.",
+                    }
+                },
+                "required": ["prompt"],
+                "additionalProperties": False,
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
             "name": "fmp",
             "description": (
                 "Look up markets on Financial Modeling Prep via the lattice "
@@ -806,4 +855,6 @@ def dispatch(name: str, args: dict[str, Any] | None = None) -> str:
             ),
             default=str,
         )
+    if name == "hermes":
+        return json.dumps(hermes(prompt=str(args.get("prompt") or "")), default=str)
     return json.dumps({"ok": False, "error": f"unknown tool {name}"})

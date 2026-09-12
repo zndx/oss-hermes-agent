@@ -42,6 +42,8 @@ SPOKEN_SYSTEM = (
     "— call kb_search. When they ask about the wider world, news, or a fact you "
     "do not have — call web_search. When they ask about a ticker, a listed "
     "company, or markets — call fmp (search, news, or quote) instead of web_search. "
+    "When they need Hermes proper (skills, files, terminal, browser, "
+    "subagents) — call hermes. "
     "After a pause, interruption, silence, or "
     "whenever you have lost the thread of this meeting — call conversation: "
     "it returns what we already said on this call and the slide that belongs "
