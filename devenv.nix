@@ -162,6 +162,11 @@ in
     SIGNALS_PLUGINS = (builtins.getEnv "HOME") + "/local/src/wxs/signals-plugins";
     # Files UI stays inside this checkout (not $HOME).
     HERMES_DASHBOARD_FILES_ROOT = config.devenv.root;
+    # Host CLI /obsidian + llm-wiki. The engine jail overrides these to
+    # /home/hermes/.hermes/wiki (same bind). Do not use ~/Documents/Obsidian Vault.
+    HERMES_HOME = (builtins.getEnv "HOME") + "/.hermes";
+    WIKI_PATH = (builtins.getEnv "HOME") + "/.hermes/wiki";
+    OBSIDIAN_VAULT_PATH = (builtins.getEnv "HOME") + "/.hermes/wiki";
     RUSTFS_DATA_DIR = rustfsDataDir;
     RUSTFS_CLIENT_CONFIG_DIR = config.env.DEVENV_STATE + "/rustfs/mc";
     # faster-whisper / tiny.en weights. Bound into the engine jail.

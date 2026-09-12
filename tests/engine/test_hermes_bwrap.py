@@ -125,6 +125,7 @@ class HermesBwrapTests(unittest.TestCase):
             )
             self.assertEqual(proc.returncode, 0, proc.stderr)
             self.assertRegex(proc.stderr, r"WIKI_PATH\s+/home/hermes/\.hermes/wiki")
+            self.assertRegex(proc.stderr, r"OBSIDIAN_VAULT_PATH\s+/home/hermes/\.hermes/wiki")
             self.assertNotRegex(proc.stderr, r"--bind\s+\S+/wiki\s+/home/hermes/wiki")
             self.assertNotIn("/home/hermes/wiki", proc.stderr)
             self.assertTrue((hermes_home / "wiki").is_dir())

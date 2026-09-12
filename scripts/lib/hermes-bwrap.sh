@@ -70,10 +70,12 @@ hermes_bwrap_exec() {
     --setenv HOME /home/hermes
     --setenv USER hermes
     --setenv HERMES_HOME /home/hermes/.hermes
-    # llm-wiki and similar skills follow WIKI_PATH. Keep the vault on the
-    # HERMES_HOME bind (named profile or common Hermes storage). Do not bind
-    # $HOME/wiki — Hermes-created notes do not belong in the operator home.
+    # llm-wiki and /obsidian follow WIKI_PATH / OBSIDIAN_VAULT_PATH. Keep the
+    # vault on the HERMES_HOME bind (named profile or common Hermes storage).
+    # Do not bind $HOME/wiki — Hermes-created notes do not belong in the
+    # operator home.
     --setenv WIKI_PATH /home/hermes/.hermes/wiki
+    --setenv OBSIDIAN_VAULT_PATH /home/hermes/.hermes/wiki
     --setenv HERMES_DASHBOARD_FILES_ROOT "$root"
   )
   mkdir -p "$host_hermes/wiki"
