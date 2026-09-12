@@ -27,6 +27,8 @@ from hsengine.engine.generated import hermes_engine_pb2 as pb
 from hsengine.engine.generated import hermes_engine_pb2_grpc as pb_grpc
 from hsengine.engine.generated.inference.v2 import open_inference_grpc_pb2 as oip_pb
 from hsengine.engine.generated.inference.v2 import open_inference_grpc_pb2_grpc as oip_grpc
+from hsengine.engine.generated.zndx.agent.v1 import agent_pb2 as apb
+from hsengine.engine.generated.zndx.agent.v1 import agent_pb2_grpc as apb_grpc
 from hsengine.engine.generated.zndx.engine.v1 import engine_pb2 as zpb
 from hsengine.engine.generated.zndx.engine.v1 import engine_pb2_grpc as zpb_grpc
 from hsengine.engine.generated.zndx.supervision.v1 import supervision_pb2 as sv_pb
@@ -284,8 +286,11 @@ async def serve() -> None:
 
     server = grpc.aio.server()
     init_bus()
+    from hsengine.engine.agents import AgentsServicer
+
     pb_grpc.add_HermesEngineServicer_to_server(HermesEngineServicer(), server)
     zpb_grpc.add_EngineServicer_to_server(ZndxEngineServicer(), server)
+    apb_grpc.add_AgentsServicer_to_server(AgentsServicer(), server)
     sv_grpc.add_EngineSupervisionServicer_to_server(EngineSupervisionServicer(), server)
     oip_grpc.add_GRPCInferenceServiceServicer_to_server(
         oip_servicer.OipInferenceServicer(), server
@@ -293,6 +298,7 @@ async def serve() -> None:
     service_names = (
         pb.DESCRIPTOR.services_by_name["HermesEngine"].full_name,
         zpb.DESCRIPTOR.services_by_name["Engine"].full_name,
+        apb.DESCRIPTOR.services_by_name["Agents"].full_name,
         sv_pb.DESCRIPTOR.services_by_name["EngineSupervision"].full_name,
         oip_pb.DESCRIPTOR.services_by_name["GRPCInferenceService"].full_name,
         reflection.SERVICE_NAME,
@@ -305,7 +311,7 @@ async def serve() -> None:
     await server.start()
     log.info(
         "hermes engine serving on %s:%s "
-        "(native + zndx.engine.v1 + EngineSupervision + OIP + reflection; "
+        "(native + zndx.engine.v1 + zndx.agent.v1 + EngineSupervision + OIP + reflection; "
         "capability=agent; surfaces=%s; peers=%s)",
         host,
         port,

@@ -103,6 +103,8 @@ epidemic gossip. Not CZMQ zgossip. Older engines: `UNIMPLEMENTED`.
 | `SURFACES` | this engine's advertised `Surface` list |
 | `QUEUES` | `QueueHint[]` — **declared leaf shape** (path, max, default guarantee). Time-varying occupancy floors are `zndx.scheduler.v1.Scheduler/RequestQueueShare`, not this snapshot. Peers never call scheduler-backend REST. |
 | `WORKLOADS` | `WorkloadHint[]` — WRK `model`, `capabilities`, `tensor_parallel` / `pipeline_parallel`, `gpu_tokens`. Never encode those in the queue name; pick heavy/medium/light (or extract/compute) from `gpu_tokens`. |
+| `THOUGHTS` / `AGENDA` / `SEARCH` / `FMP` | content snapshots (Gaius). `FMP` is **enum 16**. |
+| `AGENTS` | `AgentHint[]` this engine **hosts**. **Enum 17** (a draft used 16; that is live FMP). Full offer: `zndx.agent.v1.Agents/ListAgents`. |
 
 Do not invent remotes, peers, or UI URLs. Empty is honest.
 

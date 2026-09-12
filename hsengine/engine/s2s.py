@@ -138,6 +138,10 @@ def local_response(kind: int, *, dashboard_healthy: bool = True) -> zpb.ServerQu
         from hsengine.engine import coordination
 
         resp.activities.extend(coordination.activities_proto())
+    if kind == zpb.SERVER_QUERY_KIND_AGENTS:
+        from hsengine.engine import agents
+
+        resp.agents.append(agents.hint())
     if kind == zpb.SERVER_QUERY_KIND_SCHEDULES:
         # This engine's WORKLOAD CATALOGUE — the same entries it submits to
         # Signals (Scheduler/SyncWorkloads): the interactive agent-rtc workflow,

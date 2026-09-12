@@ -44,6 +44,12 @@ python -m grpc_tools.protoc \
   --python_out="$OUT" --pyi_out="$OUT" --grpc_python_out="$OUT" \
   "$ZNDX/zndx/scheduler/v1/scheduler.proto"
 
+echo "Compiling zndx.agent.v1.Agents"
+python -m grpc_tools.protoc \
+  -I "$ZNDX" \
+  --python_out="$OUT" --pyi_out="$OUT" --grpc_python_out="$OUT" \
+  "$ZNDX/zndx/agent/v1/agent.proto"
+
 echo "Compiling inference.GRPCInferenceService (OIP)"
 python -m grpc_tools.protoc \
   -I "$ZNDX" \
@@ -54,6 +60,7 @@ mkdir -p \
   "$OUT/zndx/engine/v1" \
   "$OUT/zndx/supervision/v1" \
   "$OUT/zndx/scheduler/v1" \
+  "$OUT/zndx/agent/v1" \
   "$OUT/inference/v2"
 touch \
   "$OUT/zndx/__init__.py" \
@@ -63,6 +70,8 @@ touch \
   "$OUT/zndx/supervision/v1/__init__.py" \
   "$OUT/zndx/scheduler/__init__.py" \
   "$OUT/zndx/scheduler/v1/__init__.py" \
+  "$OUT/zndx/agent/__init__.py" \
+  "$OUT/zndx/agent/v1/__init__.py" \
   "$OUT/inference/__init__.py" \
   "$OUT/inference/v2/__init__.py"
 
@@ -81,6 +90,12 @@ if [[ -f "$OUT/zndx/scheduler/v1/scheduler_pb2_grpc.py" ]]; then
   # scheduler.proto imports engine.proto: the pb2 module resolves it absolutely.
   sed -i 's/^from zndx\.engine\.v1 import engine_pb2 as /from hsengine.engine.generated.zndx.engine.v1 import engine_pb2 as /' \
     "$OUT/zndx/scheduler/v1/scheduler_pb2.py" "$OUT/zndx/scheduler/v1/scheduler_pb2.pyi"
+fi
+if [[ -f "$OUT/zndx/agent/v1/agent_pb2_grpc.py" ]]; then
+  sed -i 's/^from zndx\.agent\.v1 import/from hsengine.engine.generated.zndx.agent.v1 import/' \
+    "$OUT/zndx/agent/v1/agent_pb2_grpc.py"
+  sed -i 's/^from zndx\.engine\.v1 import engine_pb2 as /from hsengine.engine.generated.zndx.engine.v1 import engine_pb2 as /' \
+    "$OUT/zndx/agent/v1/agent_pb2.py" "$OUT/zndx/agent/v1/agent_pb2.pyi"
 fi
 if [[ -f "$OUT/inference/v2/open_inference_grpc_pb2_grpc.py" ]]; then
   sed -i 's/^from inference\.v2 import/from hsengine.engine.generated.inference.v2 import/' \

@@ -277,6 +277,8 @@ enum ServerQueryKind {
   SERVER_QUERY_KIND_AGENDA = 14;         // the AGENDA brief (today · tomorrow · the week) + item index; note_id = one item (added 2026-09-07)
   SERVER_QUERY_KIND_SEARCH = 15;         // KB and/or web hits; query= the string, stream= kb|web|all (added 2026-09-08)
   SERVER_QUERY_KIND_FMP = 16;            // live FMP (key stays on the serving peer); stream= search|news|quote (added 2026-09-09)
+  SERVER_QUERY_KIND_AGENTS = 17;         // agents this engine HOSTS (AgentHint[]); full offers: zndx.agent.v1.Agents/ListAgents
+                                         // (added 2026-09-09 as 16 in a draft that collided with FMP; 17 is the live number)
 }
 
 message GitRemote {
@@ -404,6 +406,7 @@ message ServerQueryResponse {
   AgendaHint agenda_hint = 16;        // kind=AGENDA (added 2026-09-07 — additive v1.)
   SearchHint search_hint = 17;        // kind=SEARCH (added 2026-09-08 — additive v1.)
   FmpHint fmp_hint = 18;              // kind=FMP (added 2026-09-09 — additive v1.)
+  repeated AgentHint agents = 19;     // kind=AGENTS (added 2026-09-12 — additive v1; not 18: FMP took that field)
 }
 
 // ── FMP (added 2026-09-09 — additive v1) ─────────────────────────────────
@@ -430,6 +433,23 @@ message FmpHint {
   repeated FmpHit hits = 4;
   string note = 5;
   string spoken = 6;
+}
+
+// ── Agents (added 2026-09-12 — additive v1) ───────────────────────────────
+//
+// DISCOVERY of the agents a peer HOSTS — the bounded assemblages (runtime +
+// tools + workspace + the model capability they think with) that
+// zndx.agent.v1 runs. Light on purpose: Agents/ListAgents is the full offer.
+// An engine that does not host an agent MUST NOT list it. Empty is honest.
+// Kind number is 17 (FMP already shipped as 16).
+message AgentHint {
+  string agent_id = 1;                    // {project}/{name}@{version}
+  string project = 2;
+  string name = 3;
+  string version = 4;
+  string transport = 5;                   // acp | sdk | cli | engine
+  repeated string model_capabilities = 6; // what it can think with; empty = brings its own model
+  string billing = 7;                     // local | subscription | token-metered
 }
 
 // ── Search (added 2026-09-08 — additive v1) ───────────────────────────────
@@ -752,6 +772,16 @@ message WorkloadOffer {
   // planner checks the models × methods mix before routing. Empty list is
   // honest. (added 2026-08-30, gaius — additive v1.)
   repeated string methods = 7;
+  // One OperatingProfile per model capability in `capabilities` this offer serves.
+  repeated OperatingProfile profiles = 8;
+}
+
+// How a model capability is SERVED (added 2026-09-08 — additive v1).
+message OperatingProfile {
+  string capability = 1;        // instruct | thinking | …
+  bool thinking = 2;
+  string reasoning_effort = 3;  // xhigh | medium | low; "" = model default
+  string note = 4;
 }
 
 // A leaf this engine needs Signals to have (declared *shape*).
