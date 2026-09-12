@@ -1,7 +1,12 @@
 """Presenterm decks stay off the calendar invite and drive the opening."""
 from __future__ import annotations
 
-from hsengine.engine.agenda_deck import opening_prompt, split_public_deck
+from hsengine.engine.agenda_deck import (
+    OPENING_GESTURES,
+    opening_prompt,
+    pick_opening_gesture,
+    split_public_deck,
+)
 
 
 def test_split_keeps_deck_off_the_public_lede():
@@ -29,10 +34,9 @@ def test_opening_uses_full_deck_when_present():
     )
     assert "Watchlist after the tape" in prompt
     assert "Would you change the book" in prompt
-    assert "first slide" in system
-    assert "off-script" in system
+    assert "Gesture " in system
+    assert "before you dive" in system.lower() or "before we dive" in system.lower() or "go first" in system.lower() or "somewhere else" in system.lower() or "bring up" in system.lower()
     assert "You are Hermes" not in system
-    assert "casual" in system.lower() or "hello" in system.lower()
     assert max_tokens > 48
 
 
@@ -71,12 +75,23 @@ def test_narrative_at_minute_four_is_not_always_the_opening():
     assert "fumes" in " ".join(narrative_at(material, elapsed_s=10 * 60)["notes"])
 
 
-def test_opening_without_material_stays_a_short_greeting():
+def test_opening_without_material_still_offers_the_floor():
     prompt, system, max_tokens = opening_prompt({})
     assert "casual hello" in prompt.lower()
+    assert "before you dive" in prompt.lower() or "anything" in prompt.lower()
     assert "You are Hermes" not in system and "Hermes" not in prompt
     assert "pipeline" not in system.lower()
-    assert max_tokens == 48
+    assert "Gesture " in system
+    assert max_tokens >= 80
+
+
+def test_opening_gesture_is_stable_for_a_session_and_varies_across_sessions():
+    a = pick_opening_gesture("session-aaa")
+    b = pick_opening_gesture("session-aaa")
+    assert a.id == b.id
+    ids = {pick_opening_gesture(f"session-{i}").id for i in range(40)}
+    assert len(ids) >= 2
+    assert ids <= {g.id for g in OPENING_GESTURES}
 
 
 def test_opening_uses_pipeline_briefs_when_there_is_no_session_material():
@@ -90,7 +105,7 @@ def test_opening_uses_pipeline_briefs_when_there_is_no_session_material():
     assert "AgentRTC retrospective" in prompt
     assert "verifiable cell state" in prompt
     assert "You are Hermes" not in system
-    assert "casual" in system.lower() or "hello" in system.lower()
+    assert "Gesture " in system
     assert "Airflow" not in system
     assert max_tokens > 48
 
@@ -108,3 +123,4 @@ def test_opening_with_deck_still_carries_pipeline_briefs():
     assert "molecular partner" in prompt
     assert "You are Hermes" not in system
     assert "do not name them" in system.lower()
+    assert "Gesture " in system

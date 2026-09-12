@@ -270,14 +270,14 @@ class WebRtcHub:
                     ",".join(sorted(pack)) or "empty",
                 )
                 prompt, system, max_tokens = opening_prompt(
-                    session, agenda_id=aid, pipeline=pack
+                    session, agenda_id=aid, pipeline=pack, seed=session_id
                 )
                 result = await asyncio.to_thread(
                     interactive.complete_cerebras,
                     prompt=prompt,
                     system_prompt=system,
                     max_tokens=max_tokens,
-                    temperature=0.4,
+                    temperature=0.55,
                     reasoning_effort="none",
                     tools=False,
                 )

@@ -8,8 +8,10 @@ onto a slide heading.
 """
 from __future__ import annotations
 
+import hashlib
 import logging
 import re
+from dataclasses import dataclass
 from typing import Any
 
 log = logging.getLogger("hsengine.engine.agenda_deck")
@@ -65,10 +67,51 @@ def load_agenda_session(agenda_id: str) -> dict[str, str]:
 _VOICE_OPEN = (
     "On a live voice call. Plain spoken words only — no markdown, HTML comments, "
     "lists as markup, code, file paths, URLs, or operator paste (BEGIN SESSION). "
-    "Start with a casual hello (hey, hi, good morning) then a couple of sentences. "
     "Never introduce yourself by name. "
-    "If background notes are missing, just talk from the session material or say hello."
+    "Casual hello, then mention two concrete ideas from the notes or session "
+    "material (not a lecture). Then ask if they have anything they want to "
+    "raise before you dive in. Do not start the first slide until they say so. "
+    "Do not invent facts that are not in the material or the notes."
 )
+
+
+@dataclass(frozen=True)
+class OpeningGesture:
+    """One discrete opening move. Same sense as synth: a named gesture, not a shape."""
+
+    id: str
+    instruction: str
+
+
+# Slight variation each Connect. Seeded by session id so the same call is stable.
+OPENING_GESTURES: tuple[OpeningGesture, ...] = (
+    OpeningGesture(
+        "offer_floor",
+        "Gesture offer_floor: warm and unhurried. Float two ideas, then "
+        "ask if anything is on their mind before you dive in.",
+    ),
+    OpeningGesture(
+        "lean_in",
+        "Gesture lean_in: a bit more energy. Two hooks from the notes, then "
+        "check whether they want to start somewhere else first.",
+    ),
+    OpeningGesture(
+        "sketch",
+        "Gesture sketch: lighter, almost offhand. Name two threads in passing, "
+        "then ask if they have something they wanted to bring up.",
+    ),
+    OpeningGesture(
+        "check_in",
+        "Gesture check_in: quieter. Two things you wanted to float, then "
+        "ask if they would rather go first.",
+    ),
+)
+
+
+def pick_opening_gesture(seed: str) -> OpeningGesture:
+    raw = (seed or "").encode("utf-8")
+    idx = hashlib.sha256(raw).digest()[0] % len(OPENING_GESTURES)
+    return OPENING_GESTURES[idx]
 
 
 def opening_prompt(
@@ -76,6 +119,7 @@ def opening_prompt(
     *,
     agenda_id: str = "",
     pipeline: dict[str, str] | None = None,
+    seed: str = "",
 ) -> tuple[str, str, int]:
     """(user prompt, system prompt, max_tokens) for the Connect opening."""
     from hsengine.engine.context_pack import pipeline_block
@@ -85,21 +129,22 @@ def opening_prompt(
     public = session.get("public") or ""
     material = deck or public
     briefs = pipeline_block(pipeline)
+    gesture = pick_opening_gesture(seed or agenda_id or title)
     extra = (
-        " After the hello you may draw on the background notes below when they "
-        "fit; do not name them or say how you got them."
+        " Draw the two ideas from the background notes below when they fit; "
+        "do not name them or say how you got them."
         if briefs
         else ""
     )
+    gesture_line = " " + gesture.instruction
     if material:
         system = (
             _VOICE_OPEN
             + extra
-            + " Then lead from the session material. If a presenterm deck is "
-            "present, start at the first slide; speaker notes are for you, not "
-            "the audience, unless they ask to go deeper. If they go off-script, "
-            "answer, then resume from a slide heading. Do not invent facts that "
-            "are not in the material or the notes."
+            + gesture_line
+            + " If a presenterm deck is present it is the later guide, not "
+            "the greeting: speaker notes are for you. If they go off-script, "
+            "answer, then resume from a slide heading when they are ready."
         )
         prompt = f"Open the session titled {title}.\n\nSession material:\n{material}"
         if public and deck:
@@ -110,28 +155,29 @@ def opening_prompt(
             )
         if briefs:
             prompt = prompt + "\n\n" + briefs
-        return prompt, system, 260
+        return prompt, system, 280
     if agenda_id:
         system = (
             _VOICE_OPEN
             + extra
-            + " The named session body did not load. After hello, invite them "
-            "to begin. Do not invent the agenda contents."
+            + gesture_line
+            + " The named session body did not load. Do not invent the agenda."
         )
-        prompt = f"Open the session.\n"
+        prompt = "Open the session.\n"
         if briefs:
             prompt = prompt + "\n" + briefs
-        return prompt, system, 120
+        return prompt, system, 160
     if briefs:
-        system = (
-            _VOICE_OPEN
-            + extra
-            + " After hello, a few sentences from the notes, then stop."
-        )
+        system = _VOICE_OPEN + extra + gesture_line
         prompt = "Open the call.\n\n" + briefs
-        return prompt, system, 180
-    system = _VOICE_OPEN + " One short spoken sentence only."
-    return "Say a casual hello. One short sentence.", system, 48
+        return prompt, system, 200
+    system = (
+        _VOICE_OPEN
+        + " No notes loaded. Casual hello, then ask if they have anything "
+        "they wanted to talk about."
+        + gesture_line
+    )
+    return "Say a casual hello and ask if they have anything before you dive in.", system, 80
 
 
 def parse_slides(markdown: str) -> list[dict[str, Any]]:
