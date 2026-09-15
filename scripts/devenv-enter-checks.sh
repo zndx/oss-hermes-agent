@@ -19,6 +19,11 @@ if ! python -c "import hsengine" >/dev/null 2>&1; then
   echo "DENY: hsengine missing from devenv venv. uv add --optional signals --editable ${SIGNALS_PLUGINS:-<SIGNALS_PLUGINS>}" >&2
   exit 1
 fi
+# Moshi supervisor /interactive/on → lease_one_gpu → federation imports grpc.
+if ! python -c "import grpc" >/dev/null 2>&1; then
+  echo "DENY: grpc missing from devenv venv (moshi supervisor). uv add --optional signals" >&2
+  exit 1
+fi
 HOME_ROOT="${HERMES_HOME:-$HOME/.hermes}"
 META="$HOME_ROOT/plugins/.install-metadata.json"
 STAMP="${DEVENV_STATE:-$ROOT/.devenv/state}/enter-update-check.stamp"

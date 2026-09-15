@@ -79,6 +79,15 @@ class SurfaceExtrasTests(unittest.TestCase):
             f"signals extra must include signals-hsengine, got {signals}",
         )
 
+    def test_engine_extra_includes_grpcio(self) -> None:
+        data = tomllib.loads(PYPROJECT.read_text(encoding="utf-8"))
+        extras = (data.get("project") or {}).get("optional-dependencies") or {}
+        engine = list(extras.get("engine") or [])
+        self.assertTrue(
+            any("grpcio" in str(item) for item in engine),
+            f"engine extra must include grpcio (moshi supervisor federation), got {engine}",
+        )
+
     def test_signals_hsengine_is_uv_source(self) -> None:
         data = tomllib.loads(PYPROJECT.read_text(encoding="utf-8"))
         sources = ((data.get("tool") or {}).get("uv") or {}).get("sources") or {}
