@@ -386,7 +386,7 @@ in
   # https://devenv.sh/tests/
   enterTest = ''
     hermes version
-    python -c "import hermes_cli, run_agent, hsengine"
+    python -c "import hermes_cli, run_agent, hsengine, aiortc"
     python ${config.devenv.root}/tests/engine/test_surface_extras.py
     python ${config.devenv.root}/tests/engine/test_dashboard_process.py
     bash -n ${config.devenv.root}/scripts/devenv-enter-checks.sh

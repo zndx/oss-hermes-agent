@@ -8,6 +8,12 @@ if [[ -e "$ROOT/hsengine" ]]; then
   echo "DENY: $ROOT/hsengine shadows the signals-hsengine package. Remove the leftover tree." >&2
   exit 1
 fi
+# Listen / AgentRTC WebRTC offer imports aiortc in hsengine. Missing extra
+# becomes HTTP 501 "aiortc is not installed (hermes-agent[engine])".
+if ! python -c "import aiortc" >/dev/null 2>&1; then
+  echo "DENY: aiortc missing from devenv venv (Listen/AgentRTC). uv pip install 'aiortc>=1.9.0,<2'" >&2
+  exit 1
+fi
 HOME_ROOT="${HERMES_HOME:-$HOME/.hermes}"
 META="$HOME_ROOT/plugins/.install-metadata.json"
 STAMP="${DEVENV_STATE:-$ROOT/.devenv/state}/enter-update-check.stamp"
