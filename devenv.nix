@@ -123,7 +123,14 @@ in
       set -euo pipefail
       real="''${CARGO_HOME:-$HOME/.cargo}/bin/moshi-server"
       if [[ ! -x "$real" ]]; then
-        echo "DENY: cargo moshi-server missing at $real (cargo install --features cuda moshi-server@0.6.4)" >&2
+        echo "DENY: cargo moshi-server missing at $real (scripts/rebuild-moshi-server.sh)" >&2
+        exit 127
+      fi
+      # Nix-linked ELF: nix GC drops the interpreter and exec 127s as
+      # "cannot execute: required file not found".
+      interp="$(${pkgs.patchelf}/bin/patchelf --print-interpreter "$real")"
+      if [[ -n "$interp" && ! -e "$interp" ]]; then
+        echo "DENY: moshi-server interpreter gone: $interp (nix GC). Rebuild: ${config.devenv.root}/scripts/rebuild-moshi-server.sh" >&2
         exit 127
       fi
       nvidia="${config.devenv.root}/.devenv/nvidia-libs"
