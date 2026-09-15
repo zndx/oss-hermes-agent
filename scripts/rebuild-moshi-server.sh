@@ -51,9 +51,25 @@ export CUDAHOSTCXX="$cxx_path"
 export CMAKE_CUDA_HOST_COMPILER="$cc_path"
 export NVCC_PREPEND_FLAGS="-ccbin ${cc_path}"
 # sentencepiece-sys 0.11.3 omits <cstdint> (gcc 15 error); gcc 13 is enough.
+# pyo3 follows PATH python; devenv venv is 3.12 but the wrap and tts-venv
+# are python3.11. Pin so the ELF NEEDs libpython3.11.so (in wrap libs).
+py311=""
+wrap="${ROOT}/.devenv/profile/bin/moshi-server"
+if [[ -f "$wrap" ]] && [[ "$(cat "$wrap")" =~ (/nix/store/[^:[:space:]]+-python3-3\.11\.[^/]+)/lib ]]; then
+  cand="${BASH_REMATCH[1]}/bin/python3.11"
+  [[ -x "$cand" ]] && py311="$cand"
+fi
+if [[ -z "$py311" ]]; then
+  echo "DENY: nix python3.11 with libpython3.11.so missing (wrap libs=)" >&2
+  exit 1
+fi
+export PYO3_PYTHON="$py311"
+export PYTHON_SYS_EXECUTABLE="$py311"
 
 mkdir -p "$CARGO_TARGET_DIR"
 echo "cc=$cc_path"
+echo "cxx=$cxx_path"
+echo "pyo3_python=$PYO3_PYTHON"
 echo "nvcc=$(nvcc --version | tail -1)"
 echo "openssl=$(pkg-config --modversion openssl 2>/dev/null || echo missing)"
 echo "target=$CARGO_TARGET_DIR"
