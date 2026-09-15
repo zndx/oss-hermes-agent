@@ -115,6 +115,8 @@ in
     pkg-config
     openssl
     libopus
+    # CUDA 12.4 nvcc rejects stdenv gcc 15. Rebuild script uses this.
+    gcc13
     # Inverse of gaius tinybox-ninja.sh: cargo moshi-server is a Nix-linked
     # ELF (PT_INTERP = nix glibc). Never put host /lib on its
     # LD_LIBRARY_PATH (that loads Ubuntu 2.35 libc and dies on GLIBC_2.39).
