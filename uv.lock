@@ -8,7 +8,7 @@ resolution-markers = [
 ]
 
 [options]
-exclude-newer = "2026-08-23T20:21:53.628630173Z"
+exclude-newer = "2026-09-01T05:38:24.307239759Z"
 exclude-newer-span = "P14D"
 
 [options.exclude-newer-package]
@@ -1979,6 +1979,7 @@ signals = [
     { name = "nautilus" },
     { name = "protobuf" },
     { name = "pyhocon" },
+    { name = "signals-hsengine" },
 ]
 slack = [
     { name = "aiohttp" },
@@ -2070,6 +2071,7 @@ requires-dist = [
     { name = "aiohttp", marker = "extra == 'teams'", specifier = "==3.14.3" },
     { name = "aiohttp-socks", marker = "extra == 'matrix'", specifier = "==0.11.0" },
     { name = "aiortc", marker = "extra == 'engine'", specifier = ">=1.9.0,<2" },
+    { name = "aiortc", marker = "extra == 'signals'", specifier = ">=1.9.0,<2" },
     { name = "aiosqlite", marker = "extra == 'matrix'", specifier = "==0.22.1" },
     { name = "alibabacloud-dingtalk", marker = "extra == 'dingtalk'", specifier = "==2.2.42" },
     { name = "anthropic", marker = "extra == 'anthropic'", specifier = "==0.87.0" },
@@ -2185,6 +2187,7 @@ requires-dist = [
     { name = "sentencepiece", marker = "extra == 'wake'", specifier = "==0.2.2" },
     { name = "setuptools", marker = "extra == 'dev'", specifier = "==83.0.0" },
     { name = "sherpa-onnx", marker = "extra == 'wake'", specifier = "==1.13.4" },
+    { name = "signals-hsengine", marker = "extra == 'signals'", editable = "../../wxs/signals-plugins" },
     { name = "slack-bolt", marker = "extra == 'messaging'", specifier = "==1.30.0" },
     { name = "slack-bolt", marker = "extra == 'slack'", specifier = "==1.30.0" },
     { name = "slack-sdk", marker = "extra == 'messaging'", specifier = "==3.43.0" },
@@ -4567,6 +4570,31 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/db/47/da3ea14ab647a4f6580227853fe29353e1173ff77064d42c0bb31d01b453/sherpa_onnx-1.13.4-cp313-cp313-manylinux2014_x86_64.manylinux_2_17_x86_64.whl", hash = "sha256:88af596be24eac32982dd64fcac30af99d9130ca498bfa1a0064189c8498195b", size = 4358385, upload-time = "2026-07-07T13:10:10.265Z" },
     { url = "https://files.pythonhosted.org/packages/44/90/84205ff383ba9335c3821c2cd6d514350f52199cb640ec094517f1f911a0/sherpa_onnx-1.13.4-cp313-cp313-win32.whl", hash = "sha256:0cabb508a15be22138f9fb7695d7ec5f3893ecd088ee419b9df559fed7e8f649", size = 1929707, upload-time = "2026-07-07T12:51:53.196Z" },
     { url = "https://files.pythonhosted.org/packages/82/40/ee8a0a8c83fc6d7f5245a5a031e471d3b115e20cce867e7abb2f9d4185c9/sherpa_onnx-1.13.4-cp313-cp313-win_amd64.whl", hash = "sha256:17050fdfb48d37ae996364f697c554a1399740d18e5a56b143c011d00cfed3e0", size = 2244504, upload-time = "2026-07-07T12:32:59.882Z" },
+]
+
+[[package]]
+name = "signals-hsengine"
+version = "0.1.0"
+source = { editable = "../../wxs/signals-plugins" }
+dependencies = [
+    { name = "aiortc" },
+    { name = "grpcio" },
+    { name = "grpcio-reflection" },
+    { name = "grpcio-tools" },
+    { name = "msgpack" },
+    { name = "protobuf" },
+    { name = "pyhocon" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "aiortc", specifier = ">=1.9.0,<2" },
+    { name = "grpcio", specifier = ">=1.81.1,<2" },
+    { name = "grpcio-reflection", specifier = ">=1.81.1,<2" },
+    { name = "grpcio-tools", specifier = ">=1.81.1,<2" },
+    { name = "msgpack", specifier = ">=1.0.8,<2" },
+    { name = "protobuf", specifier = ">=6.33.5,<7" },
+    { name = "pyhocon", specifier = ">=0.3.61,<0.4" },
 ]
 
 [[package]]

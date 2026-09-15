@@ -10,8 +10,13 @@ if [[ -e "$ROOT/hsengine" ]]; then
 fi
 # Listen / AgentRTC WebRTC offer imports aiortc in hsengine. Missing extra
 # becomes HTTP 501 "aiortc is not installed (hermes-agent[engine])".
+# Lock-owned: uv add --optional signals aiortc  (do not uv pip install).
 if ! python -c "import aiortc" >/dev/null 2>&1; then
-  echo "DENY: aiortc missing from devenv venv (Listen/AgentRTC). uv pip install 'aiortc>=1.9.0,<2'" >&2
+  echo "DENY: aiortc missing from devenv venv (Listen/AgentRTC). uv add --optional signals 'aiortc>=1.9.0,<2'" >&2
+  exit 1
+fi
+if ! python -c "import hsengine" >/dev/null 2>&1; then
+  echo "DENY: hsengine missing from devenv venv. uv add --optional signals --editable ${SIGNALS_PLUGINS:-<SIGNALS_PLUGINS>}" >&2
   exit 1
 fi
 HOME_ROOT="${HERMES_HOME:-$HOME/.hermes}"

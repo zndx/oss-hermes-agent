@@ -70,6 +70,21 @@ class SurfaceExtrasTests(unittest.TestCase):
             any("nautilus" in str(item) for item in signals),
             f"signals extra must include nautilus, got {signals}",
         )
+        self.assertTrue(
+            any("aiortc" in str(item) for item in signals),
+            f"signals extra must include aiortc (Listen/AgentRTC), got {signals}",
+        )
+        self.assertTrue(
+            any("signals-hsengine" in str(item) for item in signals),
+            f"signals extra must include signals-hsengine, got {signals}",
+        )
+
+    def test_signals_hsengine_is_uv_source(self) -> None:
+        data = tomllib.loads(PYPROJECT.read_text(encoding="utf-8"))
+        sources = ((data.get("tool") or {}).get("uv") or {}).get("sources") or {}
+        src = sources.get("signals-hsengine") or {}
+        self.assertTrue(src.get("editable"), f"signals-hsengine must be editable, got {src}")
+        self.assertTrue(src.get("path"), f"signals-hsengine must have a path source, got {src}")
 
     def test_upstream_all_does_not_swallow_local_extras(self) -> None:
         includes = _all_extra_includes()

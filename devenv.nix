@@ -79,7 +79,8 @@ in
         allExtras = false;
         # devenv defaults to `--no-install-workspace`, which syncs the
         # dependencies but skips hermes-agent itself — no `hermes` on PATH.
-        # --inexact keeps the editable signals-hsengine sidecar (not in uv.lock).
+        # signals-hsengine and aiortc are lock-owned (`uv add --optional signals`).
+        # --inexact keeps any other unmanaged devenv packages beside the lock.
         arguments = [ "--frozen" "--inexact" ];
       };
     };
@@ -357,7 +358,10 @@ in
         echo "DENY: SIGNALS_PLUGINS missing pyproject.toml: ''${sp:-unset}" >&2
         exit 1
       fi
-      uv pip install -e "$sp"
+      # Lock-owned via `uv add --optional signals --editable` ([tool.uv.sources]).
+      # Do not `uv pip install` or re-`uv add` here — that mutates pyproject/lock
+      # and a stray pip install can drop the editable sidecar.
+      python -c "import hsengine, aiortc"
     '';
     after = [ "devenv:python:uv" ];
   };
@@ -365,9 +369,6 @@ in
   # Keep this cheap: `hermes version` imports the whole CLI and runs an update
   # check, which is not worth paying for on every shell entry.
   enterShell = ''
-    if [ -n "''${SIGNALS_PLUGINS:-}" ] && [ -f "''${SIGNALS_PLUGINS}/pyproject.toml" ]; then
-      uv pip install -e "$SIGNALS_PLUGINS" >/dev/null || echo "warn: signals-hsengine not installed from $SIGNALS_PLUGINS"
-    fi
     echo "Hermes Agent dev shell (python $(python --version | cut -d' ' -f2))"
     echo "  hermes                 interactive CLI"
     echo "  hermes version         version / environment info"

@@ -298,9 +298,14 @@ engine = [
 # Signals-owned stack extra (perihelion devenv allowlist). Engine + Nautilus.
 # Nautilus git source flips from the lab path once weathership/nautilus trunk
 # is pushed with this package face.
+# aiortc is also listed on `engine`; name it here so `uv sync --extra signals`
+# cannot miss it if nested extra composition is skipped (Listen 501).
+# signals-hsengine: `uv add --optional signals --editable $SIGNALS_PLUGINS`
 signals = [
+  "aiortc>=1.9.0,<2",
   "hermes-agent[engine]",
   "nautilus",
+  "signals-hsengine",
 ]
 # mistral: Voxtral STT + TTS. Pinned to an exact verified-clean version.
 # The `mistralai` PyPI project was quarantined 2026-05-12 after the malicious
@@ -481,6 +486,7 @@ exclude-newer = "14 days"
 # Lab path until weathership/nautilus trunk is pushed with the Python package
 # face. Then: git = "ssh://git@github.com:weathership/nautilus.git", branch = "trunk"
 nautilus = { path = "../../zndx/nautilus", editable = true }
+signals-hsengine = { path = "../../wxs/signals-plugins", editable = true }
 
 [tool.uv.exclude-newer-package]
 agent-client-protocol = false
