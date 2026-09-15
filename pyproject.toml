@@ -293,6 +293,9 @@ engine = [
   "protobuf==6.33.5",
   "pyhocon==0.3.61",
   "aiortc>=1.9.0,<2",
+  # PyAV ABI: av 18 Packet is 48 bytes; 17 is 40. Mixing them 502s Connect
+  # ("Expected 48 from C header, got 40 from PyObject").
+  "av>=14,<18",
   "msgpack>=1.0.8,<2",
 ]
 # Signals-owned stack extra (perihelion devenv allowlist). Engine + Nautilus.
@@ -303,6 +306,7 @@ engine = [
 # signals-hsengine: `uv add --optional signals --editable $SIGNALS_PLUGINS`
 signals = [
   "aiortc>=1.9.0,<2",
+  "av>=14,<18",
   "hermes-agent[engine]",
   "nautilus",
   "signals-hsengine",

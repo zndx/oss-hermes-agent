@@ -8,7 +8,7 @@ resolution-markers = [
 ]
 
 [options]
-exclude-newer = "2026-09-01T05:38:24.307239759Z"
+exclude-newer = "2026-09-01T06:44:22.089471744Z"
 exclude-newer-span = "P14D"
 
 [options.exclude-newer-package]
@@ -1896,6 +1896,7 @@ edge-tts = [
 ]
 engine = [
     { name = "aiortc" },
+    { name = "av" },
     { name = "grpcio" },
     { name = "grpcio-reflection" },
     { name = "grpcio-tools" },
@@ -1972,6 +1973,7 @@ parallel-web = [
 ]
 signals = [
     { name = "aiortc" },
+    { name = "av" },
     { name = "grpcio" },
     { name = "grpcio-reflection" },
     { name = "grpcio-tools" },
@@ -2076,6 +2078,8 @@ requires-dist = [
     { name = "alibabacloud-dingtalk", marker = "extra == 'dingtalk'", specifier = "==2.2.42" },
     { name = "anthropic", marker = "extra == 'anthropic'", specifier = "==0.87.0" },
     { name = "asyncpg", marker = "extra == 'matrix'", specifier = "==0.31.0" },
+    { name = "av", marker = "extra == 'engine'", specifier = ">=14,<18" },
+    { name = "av", marker = "extra == 'signals'", specifier = ">=14,<18" },
     { name = "azure-identity", marker = "extra == 'azure-identity'", specifier = "==1.25.3" },
     { name = "boto3", marker = "extra == 'bedrock'", specifier = "==1.42.89" },
     { name = "brotlicffi", marker = "extra == 'messaging'", specifier = "==1.2.0.2" },

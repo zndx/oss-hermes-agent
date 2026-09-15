@@ -87,6 +87,10 @@ class SurfaceExtrasTests(unittest.TestCase):
             any("grpcio" in str(item) for item in engine),
             f"engine extra must include grpcio (moshi supervisor federation), got {engine}",
         )
+        self.assertTrue(
+            any(str(item).startswith("av") for item in engine),
+            f"engine extra must pin av (PyAV Packet ABI), got {engine}",
+        )
 
     def test_signals_hsengine_is_uv_source(self) -> None:
         data = tomllib.loads(PYPROJECT.read_text(encoding="utf-8"))

@@ -20,6 +20,9 @@ export HF_HOME="${HF_HOME:-/raid/cache/huggingface}"
 export SIGNALS_ENGINE_TARGET="${SIGNALS_ENGINE_TARGET:-127.0.0.1:50551}"
 export SIGNALS_PLUGINS="${SIGNALS_PLUGINS:-$HOME/local/src/wxs/signals-plugins}"
 export PYTHONPATH=""
+# Nix profile python3.11 site-packages must not mix with the venv's av/aiortc
+# (Packet C-struct size 502: Expected 48 from C header, got 40 from PyObject).
+unset NIX_PYTHONPATH
 
 # secretspec provider=dotenv writes gitignored .env; process-compose does
 # not always inject it. Source here so AgentRTC sees CEREBRAS_API_KEY

@@ -24,6 +24,11 @@ if ! python -c "import grpc" >/dev/null 2>&1; then
   echo "DENY: grpc missing from devenv venv (moshi supervisor). uv add --optional signals" >&2
   exit 1
 fi
+# aiortc WebRTC mix: a mixed av wheel 502s Connect with Packet size mismatch.
+if ! python -c "from av.packet import Packet; Packet()" >/dev/null 2>&1; then
+  echo "DENY: av.Packet unusable (PyAV ABI). uv add --optional signals 'av>=14,<18' then recycle engine" >&2
+  exit 1
+fi
 HOME_ROOT="${HERMES_HOME:-$HOME/.hermes}"
 META="$HOME_ROOT/plugins/.install-metadata.json"
 STAMP="${DEVENV_STATE:-$ROOT/.devenv/state}/enter-update-check.stamp"
