@@ -430,9 +430,19 @@ def _record_matches_live_gateway_pid(
     live_cmdline = _read_process_cmdline(pid)
     if not live_cmdline:
         return _record_looks_like_gateway(record)
-    if not looks_like_gateway_runtime_command_line(live_cmdline):
-        return False
-    return expected_home is None or _command_line_belongs_to_profile(live_cmdline, expected_home)
+    if looks_like_gateway_runtime_command_line(live_cmdline):
+        return expected_home is None or _command_line_belongs_to_profile(live_cmdline, expected_home)
+    # systemd + setproctitle often leaves /proc/pid/cmdline as just "hermes"
+    # (no "gateway run"), so the live line fails the subcommand matcher.
+    # Trust the persisted record when the PID is still this gateway.
+    tokens = live_cmdline.split()
+    if len(tokens) == 1 and Path(tokens[0]).name in {"hermes", "python", "python3", "python3.11"}:
+        if not _record_looks_like_gateway(record):
+            return False
+        return expected_home is None or not recorded_gateway_home_conflicts(
+            record, expected_home=expected_home
+        )
+    return False
 
 
 def _build_pid_record() -> dict:
