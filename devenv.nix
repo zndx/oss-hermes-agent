@@ -106,6 +106,7 @@ in
     ripgrep
     opensshForPath
     ffmpeg
+    chromium # AgentRTC HoloViews: --headless=new CDP screencast (no Xvfb)
     portaudio
     grpcurl
     lego # Let's Encrypt / DNS-01 (scripts/hermes-acme.sh, Cloudflare token)
