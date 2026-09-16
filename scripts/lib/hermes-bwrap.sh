@@ -63,6 +63,12 @@ hermes_bwrap_exec() {
     --dir /home
     --dir /home/hermes
     --bind "$host_hermes" /home/hermes/.hermes
+    # Persist host HERMES_HOME path too: gateway_state.json records
+    # /home/rch/.hermes while the jail's get_hermes_home() is
+    # /home/hermes/.hermes. Without this bind, inode/string compare fails
+    # and /api/status reports the live gateway as stopped.
+    --dir "$(dirname "$host_hermes")"
+    --bind "$host_hermes" "$host_hermes"
     --bind "$root" "$root"
     --ro-bind /nix /nix
     --ro-bind-try /usr /usr
