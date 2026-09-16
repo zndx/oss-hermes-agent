@@ -26,7 +26,8 @@ from tools.file_operations_common import DEFAULT_READ_LIMIT
 from tools import file_state
 from agent.redact import redact_sensitive_text
 from tools.file_tools_paths import (
-    _expand_tilde, _path_resolution_warning, _resolve_base_dir, _resolve_path_for_task)
+    _expand_tilde, _path_resolution_warning, _prepare_tool_path, _resolve_base_dir,
+    _resolve_path_for_task)
 from tools.file_tools_write_guards import (
     _READ_DEDUP_STATUS_MESSAGE, _check_approval_required_write, _check_binary_document_write,
     _check_cross_profile_path, _check_protected_instruction_write, _check_sensitive_path,
@@ -947,10 +948,11 @@ def search_tool(pattern: str, target: str = "content", path: str = ".",
                 pattern=pattern,
                 already_searched=count)
 
+        prepared = _prepare_tool_path(path, task_id)
         try:
             resolved_search_path = str(_resolve_path_for_task(path, task_id))
         except (OSError, ValueError, RuntimeError) as exc:
-            resolved_search_path = path
+            resolved_search_path = prepared or path
             # A RuntimeError still surfaces as the tool error unless the raw
             # path is itself denylisted (that error wins).
             if isinstance(exc, RuntimeError) and not get_read_block_error(path):
@@ -965,8 +967,11 @@ def search_tool(pattern: str, target: str = "content", path: str = ".",
         if cached_search_nf is not None:
             return cached_search_nf
 
+        # Wiki aliases become an absolute vault path. Leave other relative
+        # roots (including whitespace/comma multi-path) for file_ops to split.
+        search_root = prepared if os.path.isabs(prepared) else path
         result = _get_file_ops(task_id).search(
-            pattern=pattern, path=path, target=target, file_glob=file_glob,
+            pattern=pattern, path=search_root, target=target, file_glob=file_glob,
             limit=limit, offset=offset, output_mode=output_mode, context=context, order=order)
         omitted = _filter_read_blocked_search_results(result, task_id)
         for m in getattr(result, "matches", None) or ():
@@ -1027,7 +1032,7 @@ READ_FILE_SCHEMA = {
     "parameters": {
         "type": "object",
         "properties": {
-            "path": {"type": "string", "description": "Path to the file to read (absolute, relative, or ~/path)"},
+            "path": {"type": "string", "description": "Path to the file to read (absolute, relative, ~/path, wiki/... or $WIKI_PATH/... for the Hermes wiki vault)"},
             "offset": {"type": "integer", "description": "Line number to start reading from (1-indexed, default: 1)", "default": 1, "minimum": 1},
             "limit": {"type": "integer", "description": "Maximum number of lines to read (default: 2000, max: 2000). Reads are additionally capped at a ~100K-character budget with a next_offset continuation.", "default": DEFAULT_READ_LIMIT, "maximum": 2000}
         },
@@ -1041,7 +1046,7 @@ WRITE_FILE_SCHEMA = {
     "parameters": {
         "type": "object",
         "properties": {
-            "path": {"type": "string", "description": "Path to the file to write (will be created if it doesn't exist, overwritten if it does)"},
+            "path": {"type": "string", "description": "Path to the file to write (absolute, relative, ~/path, wiki/... or $WIKI_PATH/... for the Hermes wiki vault). Creates parent directories. Overwrites if it exists."},
             "content": {"type": "string", "description": "Complete content to write to the file"},
             # NOTE: the handler still accepts `cross_profile` (bool) — it now
             # bypasses only the #32049 sandbox-mirror lost-write guards, whose
@@ -1074,7 +1079,7 @@ PATCH_SCHEMA = {
         "properties": {
             "path": {
                 "type": "string",
-                "description": "File path to edit.",
+                "description": "File path to edit (absolute, relative, wiki/... or $WIKI_PATH/... for the Hermes wiki vault).",
             },
             "old_string": {
                 "type": "string",
@@ -1158,7 +1163,7 @@ SEARCH_FILES_SCHEMA = {
         "properties": {
             "pattern": {"type": "string", "description": "Regex pattern for content search, or glob pattern (e.g., '*.py') for file search"},
             "target": {"type": "string", "enum": ["content", "files"], "description": "'content' searches inside file contents, 'files' searches for files by name", "default": "content"},
-            "path": {"type": "string", "description": "Directory or file to search in (default: current working directory)", "default": "."},
+            "path": {"type": "string", "description": "Directory or file to search in (default: cwd). wiki/ and $WIKI_PATH are the Hermes wiki vault.", "default": "."},
             "file_glob": {"type": "string", "description": "Filter files by pattern in grep mode (e.g., '*.py' to only search Python files)"},
             "limit": {"type": "integer", "description": "Maximum number of results to return (default: 50)", "default": 50},
             "offset": {"type": "integer", "description": "Skip first N results for pagination (default: 0)", "default": 0},

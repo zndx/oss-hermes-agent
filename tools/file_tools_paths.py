@@ -169,10 +169,92 @@ def _resolve_base_dir(
     return _anchor(_host_text(root or os.getcwd(), container_paths), os.getcwd, container_paths)
 
 
+def wiki_vault_path() -> str | None:
+    """Absolute Hermes wiki vault: ``$WIKI_PATH`` or ``${HERMES_HOME}/wiki``."""
+    raw = (os.environ.get("WIKI_PATH") or "").strip()
+    if raw:
+        return _expand_tilde(raw)
+    try:
+        from hermes_constants import get_hermes_home
+
+        return str(get_hermes_home() / "wiki")
+    except Exception:
+        return None
+
+
+def _expand_wiki_env(text: str) -> str:
+    """Expand ``$WIKI_PATH`` / ``$HERMES_HOME`` / ``$OBSIDIAN_VAULT_PATH`` (and ``${…}``).
+
+    File tools do not run a shell, so a typed ``$WIKI_PATH/concepts/x.md`` would
+    otherwise be a literal relative path under cwd (AgentRTC jail: ``/home/hermes``).
+    """
+    vault = wiki_vault_path() or ""
+    hermes_home = (os.environ.get("HERMES_HOME") or "").strip()
+    if not hermes_home:
+        try:
+            from hermes_constants import get_hermes_home
+
+            hermes_home = str(get_hermes_home())
+        except Exception:
+            hermes_home = ""
+    obsidian = (os.environ.get("OBSIDIAN_VAULT_PATH") or "").strip() or vault
+    for name, val in (
+        ("WIKI_PATH", vault),
+        ("HERMES_HOME", hermes_home),
+        ("OBSIDIAN_VAULT_PATH", obsidian),
+    ):
+        if not val:
+            continue
+        text = text.replace("${" + name + "}", val).replace("$" + name, val)
+    return text
+
+
+def _workspace_wiki_dir(task_id: str) -> Path | None:
+    """``<task cwd>/wiki`` when that directory exists, else None."""
+    try:
+        candidate = Path(str(_resolve_base_dir(task_id))) / "wiki"
+    except Exception:
+        return None
+    return candidate if candidate.is_dir() else None
+
+
+def _rewrite_wiki_prefix(text: str, task_id: str) -> str:
+    """Map ``wiki`` / ``wiki/...`` onto the Hermes vault unless cwd already has ``wiki/``.
+
+    AgentRTC's jail cwd is ``HOME=/home/hermes``; the vault is
+    ``$WIKI_PATH`` (``$HERMES_HOME/wiki``). Relative ``wiki/entities/x.md``
+    404'd as ``/home/hermes/wiki/...`` and the agent looped on terminal ls.
+    A checkout that actually contains ``wiki/`` keeps cwd-relative resolution.
+    """
+    vault = wiki_vault_path()
+    if not vault:
+        return text
+    rel = text.replace("\\", "/")
+    if rel.startswith("./"):
+        rel = rel[2:]
+    if rel != "wiki" and not rel.startswith("wiki/"):
+        return text
+    local = _workspace_wiki_dir(task_id)
+    if local is not None:
+        try:
+            if local.resolve() != Path(vault).resolve():
+                return text
+        except Exception:
+            return text
+    rest = rel[4:].lstrip("/")
+    return str(Path(vault) / rest) if rest else vault
+
+
+def _prepare_tool_path(filepath: str, task_id: str = "default") -> str:
+    """Env-expand wiki vars, then rewrite a ``wiki/`` alias to the vault."""
+    return _rewrite_wiki_prefix(_expand_wiki_env((filepath or "").strip()), task_id)
+
+
 def _resolve_path_for_task(filepath: str, task_id: str = "default") -> Path | PurePosixPath:
     """Resolve *filepath* against the task's absolute base directory
     (absolute inputs are returned resolved-but-unanchored)."""
     container_paths = _uses_container_paths(task_id)
+    filepath = _prepare_tool_path(filepath, task_id)
     return _anchor(_host_text(filepath, container_paths),
                    lambda: _resolve_base_dir(task_id, container_paths=container_paths), container_paths)
 
@@ -183,7 +265,8 @@ def _path_resolution_warning(filepath: str, resolved: Path, task_id: str = "defa
     edit is about to land in a different checkout than the terminal's cwd).
     ``None`` for absolute paths, an unknown root, or a path under the root."""
     try:
-        if Path(_expand_tilde(filepath)).is_absolute():
+        prepared = _prepare_tool_path(filepath, task_id)
+        if Path(_expand_tilde(prepared)).is_absolute():
             return None
         workspace_root = _authoritative_workspace_root(task_id)
         if not workspace_root:
