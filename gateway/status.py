@@ -98,9 +98,21 @@ def _canonical_hermes_home(path: Path | str) -> Path:
 
 
 def _same_hermes_home(left: Path | str, right: Path | str) -> bool:
-    """Compare HERMES_HOME paths with the host platform's case semantics."""
+    """Compare HERMES_HOME paths with the host platform's case semantics.
+
+    Bind-mount aliases (dashboard bwrap ``/home/hermes/.hermes`` → host
+    ``~/.hermes``) must count as the same home: string equality after
+    resolve() is not enough inside the mount namespace.
+    """
     left_c = os.path.normcase(str(_canonical_hermes_home(left)))
-    return left_c == os.path.normcase(str(_canonical_hermes_home(right)))
+    right_c = os.path.normcase(str(_canonical_hermes_home(right)))
+    if left_c == right_c:
+        return True
+    try:
+        sl, sr = os.stat(left_c), os.stat(right_c)
+    except OSError:
+        return False
+    return (sl.st_dev, sl.st_ino) == (sr.st_dev, sr.st_ino)
 
 
 def recorded_gateway_home_conflicts(

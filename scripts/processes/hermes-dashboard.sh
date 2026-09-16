@@ -21,6 +21,16 @@ PORT="${HERMES_DASHBOARD_PORT:-9119}"
 export HERMES_DASHBOARD_PUBLIC_URL="${HERMES_DASHBOARD_PUBLIC_URL:-http://${HERMES_ADVERTISE_HOST}:${PORT}}"
 export PYTHONPATH=""
 
+# Chat is an embedded TUI PTY. venv nodejs_wheel is a host-glibc binary
+# that loads Nix libstdc++ (GLIBC_2.38) and fails `npm run build`.
+# Devenv's nodejs_22 uses the Nix interpreter — prefer it for HERMES_NODE/npm.
+_DEVENV_NODE="${ROOT}/.devenv/profile/bin/node"
+if [[ -x "$_DEVENV_NODE" ]]; then
+  export HERMES_NODE="$_DEVENV_NODE"
+  export PATH="${ROOT}/.devenv/profile/bin:${PATH}"
+fi
+export HERMES_BWRAP_SHARE_PID=1
+
 # secretspec provider=dotenv writes gitignored .env; process-compose does not
 # always inject it. Source here so `devenv up -d` can start the dashboard.
 # Tests set HERMES_DASHBOARD_IGNORE_DOTENV=1 so a developer .env cannot leak.

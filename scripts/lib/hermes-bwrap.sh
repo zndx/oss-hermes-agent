@@ -47,7 +47,16 @@ hermes_bwrap_exec() {
   rustfs="${RUSTFS_DATA_DIR:-}"
 
   local -a args=(
-    --unshare-user --unshare-pid --die-with-parent
+    --unshare-user --die-with-parent
+  )
+  # Dashboard must see the host gateway PID (hermes-gateway.service).
+  # --unshare-pid gives a private /proc so /api/status reports stopped
+  # even when the user unit is running — chat then looks "unavailable"
+  # and UI "Restart gateway" cannot observe the process it just spawned.
+  if [[ "${HERMES_BWRAP_SHARE_PID:-0}" != "1" ]]; then
+    args+=(--unshare-pid)
+  fi
+  args+=(
     --dev /dev
     --proc /proc
     --tmpfs /tmp
