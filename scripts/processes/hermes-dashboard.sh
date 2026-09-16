@@ -19,6 +19,7 @@ export SIGNALS_PLUGINS="${SIGNALS_PLUGINS:-$HOME/local/src/wxs/signals-plugins}"
 HOST="${HERMES_DASHBOARD_BIND_HOST:-0.0.0.0}"
 PORT="${HERMES_DASHBOARD_PORT:-9119}"
 export HERMES_DASHBOARD_PUBLIC_URL="${HERMES_DASHBOARD_PUBLIC_URL:-http://${HERMES_ADVERTISE_HOST}:${PORT}}"
+export HERMES_ENGINE_TARGET="${HERMES_ENGINE_TARGET:-127.0.0.1:50651}"
 export PYTHONPATH=""
 
 # Chat is an embedded TUI PTY. venv nodejs_wheel is a host-glibc binary

@@ -262,6 +262,11 @@ in
       exec ${config.devenv.root}/scripts/processes/hermes-engine.sh
     '';
     process-compose = {
+      availability = {
+        restart = "on_failure";
+        backoff_seconds = 5;
+        max_restarts = 100;
+      };
       readiness_probe = {
         exec.command = ''
           ${config.devenv.root}/.devenv/state/venv/bin/python ${config.devenv.root}/scripts/hermes_status_ok.py \
