@@ -304,12 +304,26 @@ engine = [
 # aiortc is also listed on `engine`; name it here so `uv sync --extra signals`
 # cannot miss it if nested extra composition is skipped (Listen 501).
 # signals-hsengine: `uv add --optional signals --editable $SIGNALS_PLUGINS`
+# Holoviz stack: same floors as Aegir + cyberphy observability (Signals uses
+# HoloViews). Upper bounds are Hermes policy. numpy stays the core pin
+# 2.4.3 — cyberphy's numpy<2.4 is stale (numba 0.67 + datashader 0.19
+# resolve against 2.4.3). Datashader is declared here for the Signals
+# workspace extra; AgentRTC first-pass stills do not import it.
 signals = [
   "aiortc>=1.9.0,<2",
   "av>=14,<18",
   "hermes-agent[engine]",
   "nautilus",
   "signals-hsengine",
+  "holoviews>=1.18,<2",
+  "bokeh>=3.4,<4",
+  "panel>=1.3,<2",
+  "hvplot>=0.9,<0.14",
+  "datashader>=0.16.3,<0.21",
+  "colorcet>=3.0,<4",
+  "param>=2.0,<3",
+  "numba>=0.60,<0.69",
+  "networkx>=3.0,<4",
 ]
 # mistral: Voxtral STT + TTS. Pinned to an exact verified-clean version.
 # The `mistralai` PyPI project was quarantined 2026-05-12 after the malicious
