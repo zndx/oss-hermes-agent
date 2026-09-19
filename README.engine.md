@@ -24,9 +24,15 @@ face; Nautilus instance follows Gaius (read-only adoption only).
 | Nautilus instance | `config/supervision/hermes.textproto` (observe-only; Gaius leads the supervisor) |
 | Object store | devenv `services.rustfs` — S3 `:9020` / console `:9021` (`/raid/build/hermes/data`; buckets `hermes-artifacts`, `hermes-sessions`). Overlay pin matches Signals/synth. Lattice peers keep their own: synth `:9000`, Signals `:9010`. |
 
-This tree is an **external** peer. Do not vendor Hermes into Signals. A
-sample systemd unit (when Signals adds `--peers hermes`) should
-`WorkingDirectory=` here.
+This tree is an **external** peer. Do not vendor Hermes into Signals.
+Membership is the **system** unit `hermes.service` (`WantedBy=signals.target`):
+
+```bash
+just install-systemd --peers hermes --enable   # from the Signals checkout
+sudo systemctl start hermes.service
+```
+
+A user unit on `default.target` is not a member of the group.
 
 ## Remotes
 

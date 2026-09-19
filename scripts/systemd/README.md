@@ -1,17 +1,26 @@
 # Hermes systemd units
 
-Symmetric with Gaius: `hermes.service` is the devenv control plane;
-Nautilus is a **resident** under `devenv up -d` plus an hourly tick timer.
+**Membership is the system unit** `hermes.service` under `signals.target`
+(`signals/infra/systemd/hermes.service` → ExecStart
+`scripts/systemd_start.sh`). A user unit on `default.target` is not a
+peer of the group: after a host reboot `signals.target` comes up and
+Hermes stays down.
 
 ```bash
-# user units
+# From the Signals checkout (sudo):
+just install-systemd --peers hermes --enable
+sudo systemctl start hermes.service
+```
+
+Nautilus is a **resident** under `devenv up -d` plus an optional hourly
+tick timer (user):
+
+```bash
+# user units (tick only — not the engine)
 mkdir -p ~/.config/systemd/user
-ln -sf ~/local/src/oss/hermes-agent/scripts/systemd/hermes.service ~/.config/systemd/user/
 ln -sf ~/local/src/oss/hermes-agent/scripts/systemd/hermes-nautilus-tick.service ~/.config/systemd/user/
 ln -sf ~/local/src/oss/hermes-agent/scripts/systemd/hermes-nautilus-tick.timer ~/.config/systemd/user/
 systemctl --user daemon-reload
-systemctl --user daemon-reload
-systemctl --user enable --now hermes.service
 systemctl --user enable --now hermes-nautilus-tick.timer
 ```
 

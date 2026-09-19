@@ -1,18 +1,17 @@
+# DEPRECATED as a membership hook. signals.target is a *system* group;
+# this user unit never joins it (WantedBy=default.target is a different
+# systemd instance). Use:
+#   just install-systemd --peers hermes --enable
+#   sudo systemctl start hermes.service
+# Kept so an old user symlink does not silently start a second graph.
 [Unit]
-Description=Hermes devenv stack (engine, dashboard, rustfs, caddy, nautilus)
+Description=DEPRECATED — Hermes membership is system hermes.service (signals.target)
 Documentation=file:///home/rch/local/src/oss/hermes-agent/README.engine.md
-After=network-online.target
-Wants=network-online.target
 
 [Service]
 Type=oneshot
 RemainAfterExit=yes
-WorkingDirectory=%h/local/src/oss/hermes-agent
-Environment=HOME=%h
-Environment=PATH=%h/.nix-profile/bin:/nix/var/nix/profiles/default/bin:/usr/bin:/bin
-Environment=SIGNALS_PLUGINS=%h/local/src/wxs/signals-plugins
-ExecStart=%h/.nix-profile/bin/devenv up -d
-ExecStop=%h/.nix-profile/bin/devenv processes down
+ExecStart=/bin/echo "hermes.service is a signals.target system unit; this user unit is a no-op"
 
 [Install]
 WantedBy=default.target
