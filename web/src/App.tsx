@@ -250,6 +250,7 @@ const ICON_MAP: Record<string, ComponentType<{ className?: string }>> = {
   Code,
   Eye,
   Radio,
+  BookOpen,
 };
 
 function resolveIcon(name: string): ComponentType<{ className?: string }> {

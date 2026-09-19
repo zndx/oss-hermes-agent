@@ -47,6 +47,29 @@ describe("partitionSidebarNav", () => {
     expect(pluginItems).toEqual([]);
   });
 
+  it("pins Wiki after Files into the core sidebar", () => {
+    const withFiles = [
+      item("/chat", "Chat"),
+      item("/sessions", "Sessions"),
+      item("/files", "Files"),
+      item("/skills", "Skills"),
+    ];
+    const { coreItems, pluginItems } = partitionSidebarNav(
+      withFiles,
+      [plugin("/wiki", "Wiki", "after:files")],
+      () => ICON,
+    );
+    expect(coreItems.map((i) => i.path)).toEqual([
+      "/chat",
+      "/sessions",
+      "/files",
+      "/wiki",
+      "/skills",
+    ]);
+    expect(coreItems[3]?.label).toBe("Wiki");
+    expect(pluginItems).toEqual([]);
+  });
+
   it("keeps unpinned plugin tabs in the Plugins section", () => {
     const { coreItems, pluginItems } = partitionSidebarNav(
       CORE,
