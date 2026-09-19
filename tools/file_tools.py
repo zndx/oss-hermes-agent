@@ -794,12 +794,25 @@ def write_file_tool(path: str, content: str, task_id: str = "default",
             if _resolved:
                 # Always report the ABSOLUTE path written so a wrong-cwd mismatch
                 # is visible in the response instead of silently landing elsewhere.
-                result_dict["resolved_path"] = _resolved
+                result_dict["resolved_path"] = str(_resolved)
             if result_dict.get("error"):
                 _update_read_timestamp(path, task_id)
             else:
+                landed = Path(str(_resolved or path))
+                try:
+                    on_disk = landed.is_file()
+                    nbytes = landed.stat().st_size if on_disk else 0
+                except OSError:
+                    on_disk, nbytes = False, 0
+                if not on_disk:
+                    return tool_error(
+                        f"Write reported ok but {landed} is not on disk. "
+                        "Do not tell the user the file was written."
+                    )
+                result_dict["verified"] = True
+                result_dict["bytes"] = nbytes
                 if _resolved:
-                    result_dict["files_modified"] = [_resolved]
+                    result_dict["files_modified"] = [str(_resolved)]
                 _note_edited(task_id, [path], path_to_resolved, session_id)
         return json.dumps(result_dict, ensure_ascii=False)
     except Exception as e:

@@ -219,28 +219,21 @@ def _workspace_wiki_dir(task_id: str) -> Path | None:
 
 
 def _rewrite_wiki_prefix(text: str, task_id: str) -> str:
-    """Map ``wiki`` / ``wiki/...`` onto the Hermes vault unless cwd already has ``wiki/``.
+    """Map ``wiki`` / ``wiki/...`` onto the Hermes vault.
 
-    AgentRTC's jail cwd is ``HOME=/home/hermes``; the vault is
-    ``$WIKI_PATH`` (``$HERMES_HOME/wiki``). Relative ``wiki/entities/x.md``
-    404'd as ``/home/hermes/wiki/...`` and the agent looped on terminal ls.
-    A checkout that actually contains ``wiki/`` keeps cwd-relative resolution.
+    AgentRTC claimed friction-log writes that never hit the vault because
+    a cwd ``wiki/`` (jail tmpfs or checkout) skipped this rewrite. The
+    vault is ``$WIKI_PATH`` / ``${HERMES_HOME}/wiki``. A project-local
+    wiki is ``./wiki/...`` (leading ``./`` is not rewritten).
     """
     vault = wiki_vault_path()
     if not vault:
         return text
     rel = text.replace("\\", "/")
     if rel.startswith("./"):
-        rel = rel[2:]
+        return text
     if rel != "wiki" and not rel.startswith("wiki/"):
         return text
-    local = _workspace_wiki_dir(task_id)
-    if local is not None:
-        try:
-            if local.resolve() != Path(vault).resolve():
-                return text
-        except Exception:
-            return text
     rest = rel[4:].lstrip("/")
     return str(Path(vault) / rest) if rest else vault
 

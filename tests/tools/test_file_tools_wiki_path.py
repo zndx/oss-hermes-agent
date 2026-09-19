@@ -1,15 +1,16 @@
 """``wiki/`` and ``$WIKI_PATH`` resolve to the Hermes wiki vault.
 
-AgentRTC's jail cwd is HOME (``/home/hermes``), while the vault is
-``$WIKI_PATH`` (``$HERMES_HOME/wiki``). Relative ``wiki/concepts/x.md``
-404'd as ``/home/hermes/wiki/...`` and the agent looped on ``ls``. A
-workspace that actually contains ``wiki/`` must keep cwd-relative resolution.
+AgentRTC claimed friction-log writes that never hit the vault when a cwd
+``wiki/`` skipped the rewrite. ``wiki/...`` is always the vault; a
+project-local tree is ``./wiki/...``.
 """
 
+import json
 from pathlib import Path
 
 import tools.file_tools_paths as ftp
 import tools.terminal_tool as terminal_tool
+from tools.file_tools import write_file_tool
 
 
 def test_wiki_slash_resolves_to_vault_when_cwd_has_no_wiki(tmp_path, monkeypatch):
@@ -56,10 +57,10 @@ def test_dollar_wiki_path_expands_to_vault(tmp_path, monkeypatch):
     assert Path(braced) == (vault / "SCHEMA.md").resolve()
 
 
-def test_workspace_wiki_dir_is_not_stolen_by_the_vault(tmp_path, monkeypatch):
+def test_wiki_slash_is_the_vault_even_when_cwd_has_wiki(tmp_path, monkeypatch):
     vault = tmp_path / "hermes" / "wiki"
     vault.mkdir(parents=True)
-    (vault / "vault-only.md").write_text("vault\n")
+    (vault / "friction.md").write_text("vault\n")
     workspace = tmp_path / "project"
     local = workspace / "wiki"
     local.mkdir(parents=True)
@@ -69,9 +70,11 @@ def test_workspace_wiki_dir_is_not_stolen_by_the_vault(tmp_path, monkeypatch):
     monkeypatch.setattr(terminal_tool, "_session_cwd", {})
     terminal_tool.record_session_cwd("default", str(workspace))
 
-    resolved = ftp._resolve_path_for_task("wiki/README.md", task_id="default")
+    resolved = ftp._resolve_path_for_task("wiki/friction.md", task_id="default")
+    local_dot = ftp._resolve_path_for_task("./wiki/README.md", task_id="default")
 
-    assert Path(resolved) == (local / "README.md").resolve()
+    assert Path(resolved) == (vault / "friction.md").resolve()
+    assert Path(local_dot) == (local / "README.md").resolve()
 
 
 def test_wiki_slash_uses_hermes_home_when_wiki_path_unset(tmp_path, monkeypatch):
@@ -87,3 +90,22 @@ def test_wiki_slash_uses_hermes_home_when_wiki_path_unset(tmp_path, monkeypatch)
     resolved = ftp._resolve_path_for_task("wiki/SCHEMA.md", task_id="default")
 
     assert Path(resolved) == (home / "wiki" / "SCHEMA.md").resolve()
+
+
+def test_write_file_wiki_alias_lands_and_is_verified(tmp_path, monkeypatch):
+    vault = tmp_path / "vault"
+    vault.mkdir()
+    jail = tmp_path / "jail"
+    jail.mkdir()
+    monkeypatch.chdir(jail)
+    monkeypatch.setenv("WIKI_PATH", str(vault))
+    monkeypatch.setattr(terminal_tool, "_session_cwd", {})
+
+    out = json.loads(
+        write_file_tool("wiki/scratch/friction.md", "entry 5\n", task_id="default")
+    )
+    landed = vault / "scratch" / "friction.md"
+    assert out.get("verified") is True
+    assert landed.is_file()
+    assert landed.read_text() == "entry 5\n"
+    assert Path(out["resolved_path"]) == landed.resolve()
