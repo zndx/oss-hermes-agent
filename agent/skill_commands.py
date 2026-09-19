@@ -323,7 +323,10 @@ def _scaffold_header(
 _SCAN_SKIP_PARTS = {'.git', '.github', '.hub', '.archive'}
 
 
-def _scan_skill_md(skill_md: Path, disabled: set, seen_names: set, commands: Dict[str, Dict[str, Any]], resolve_command) -> None:
+def _scan_skill_md(
+    skill_md: Path, disabled: set, seen_names: set, commands: Dict[str, Dict[str, Any]],
+    resolve_command, plugin_slashes: set | None = None,
+) -> None:
     """Register one SKILL.md in *commands* (no-op when filtered or colliding)."""
     from tools.skills_tool import _parse_frontmatter, skill_matches_platform, skill_matches_environment
     if any(part in _SCAN_SKIP_PARTS for part in skill_md.parts):
@@ -348,6 +351,13 @@ def _scan_skill_md(skill_md: Path, disabled: set, seen_names: set, commands: Dic
     if resolve_command(cmd_name) is not None:
         logger.warning("Skill %r generates slash command '/%s' which collides with a core Hermes command; "
                        "skipping auto-registration. Use '/skill %s' instead.", name, cmd_name, name)
+        return
+    if plugin_slashes and cmd_name in plugin_slashes:
+        logger.warning(
+            "Skill %r generates slash command '/%s' which collides with a plugin command; "
+            "skipping auto-registration. Use '/skill %s' instead.",
+            name, cmd_name, name,
+        )
         return
     # Dedup on the slug too: "git_helper" and "git-helper" normalize the same.
     # First-wins preserves project > local > external precedence.
@@ -380,6 +390,17 @@ def scan_skill_commands() -> Dict[str, Dict[str, Any]]:
             get_external_skills_dirs, get_project_skills_dirs, iter_project_skill_files, iter_skill_index_files,
         )
         from hermes_cli.commands import resolve_command
+        plugin_slashes: set[str] = set()
+        try:
+            from hermes_cli.plugins import get_plugin_commands
+
+            plugin_slashes = {
+                str(n).strip().lstrip("/").replace("_", "-").lower()
+                for n in (get_plugin_commands() or {})
+                if str(n).strip()
+            }
+        except Exception:
+            plugin_slashes = set()
         disabled = _get_disabled_skill_names()
         seen_names: set = set()
         # Precedence: project (through the quarantine chokepoint) > local > external.
@@ -393,7 +414,10 @@ def scan_skill_commands() -> Dict[str, Dict[str, Any]]:
         for _iter in iters:
             for skill_md in _iter:
                 try:
-                    _scan_skill_md(skill_md, disabled, seen_names, commands, resolve_command)
+                    _scan_skill_md(
+                        skill_md, disabled, seen_names, commands, resolve_command,
+                        plugin_slashes,
+                    )
                 except Exception:
                     continue
     except Exception:

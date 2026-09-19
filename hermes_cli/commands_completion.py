@@ -450,17 +450,28 @@ class SlashCommandCompleter(Completer):
                 skill_count = len(info.get("skills", []))
                 yield _cmd_completion(
                     cmd[1:], f"▣ {info.get('description', 'Skill bundle')} ({skill_count} skills)")
-        for cmd, info in self._iter_skill_commands().items():
-            if cmd[1:].startswith(word):
-                yield _cmd_completion(cmd[1:], f"⚡ {info.get('description', 'Skill command')}")
+        plugin_cmds: dict = {}
         try:
             from hermes_cli.plugins import get_plugin_commands
-            for cmd_name, cmd_info in get_plugin_commands().items():
-                if cmd_name.startswith(word):
-                    yield _cmd_completion(
-                        cmd_name, f"🔌 {cmd_info.get('description', 'Plugin command')}")
+
+            plugin_cmds = get_plugin_commands() or {}
         except Exception:
-            pass
+            plugin_cmds = {}
+        plugin_names = {
+            str(n).strip().lstrip("/").replace("_", "-").lower()
+            for n in plugin_cmds
+            if str(n).strip()
+        }
+        for cmd, info in self._iter_skill_commands().items():
+            slug = cmd[1:].replace("_", "-").lower()
+            if slug in plugin_names:
+                continue
+            if cmd[1:].startswith(word):
+                yield _cmd_completion(cmd[1:], f"⚡ {info.get('description', 'Skill command')}")
+        for cmd_name, cmd_info in plugin_cmds.items():
+            if cmd_name.startswith(word):
+                yield _cmd_completion(
+                    cmd_name, f"🔌 {cmd_info.get('description', 'Plugin command')}")
 
 
 class SlashCommandAutoSuggest(AutoSuggest):

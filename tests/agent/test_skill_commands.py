@@ -333,8 +333,23 @@ class TestScanSkillCommands:
 
     # -- core-command collision guard (#31204 / #53450) ---------------------
 
+    def test_plugin_command_collision_skips_skill_slash(self, tmp_path):
+        """A SKILL.md that shares a plugin slash name is not a second /command.
 
-
+        /zettel is the plugin capture handler; the note-taking skill stays
+        loadable via /skill zettel. Two palette rows (🔌 and ⚡) was the bug.
+        """
+        skills_root = tmp_path / "skills"
+        skills_root.mkdir()
+        _make_skill(skills_root, "zettel", body="File a note.")
+        _make_skill(skills_root, "other-note", body="Unrelated.")
+        with patch("tools.skills_tool.SKILLS_DIR", skills_root), patch(
+            "hermes_cli.plugins.get_plugin_commands",
+            lambda: {"zettel": {"description": "Plugin zettel"}},
+        ):
+            result = scan_skill_commands()
+        assert "/zettel" not in result
+        assert "/other-note" in result
 
     # -- inter-skill slug collision dedup (#50304 / #63305) ------------------
 

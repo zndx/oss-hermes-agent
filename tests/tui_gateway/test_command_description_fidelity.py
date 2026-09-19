@@ -23,3 +23,41 @@ def test_full_descriptions_survive_catalog_and_completion(monkeypatch):
     completions = list(completer.get_completions(Document("/proof"), CompleteEvent()))
     assert len(completions) == 2
     assert all(description in completion.display_meta_text for completion in completions)
+
+
+def test_same_named_plugin_command_hides_skill_slash(monkeypatch):
+    from hermes_cli import plugins
+    from hermes_cli.commands_completion import SlashCommandCompleter
+
+    skills = {"/zettel": {"name": "zettel", "description": "Skill zettel"}}
+    monkeypatch.setattr(
+        plugins, "get_plugin_commands",
+        lambda: {"zettel": {"description": "Plugin zettel"}},
+    )
+    completer = SlashCommandCompleter(skill_commands_provider=lambda: skills)
+    completions = list(completer.get_completions(Document("/zettel"), CompleteEvent()))
+    zettel = [c for c in completions if "zettel" in (c.text or "").replace(" ", "")]
+    assert len(zettel) == 1
+    meta = zettel[0].display_meta_text or ""
+    assert "🔌" in meta
+    assert "⚡" not in meta
+
+
+def test_catalog_does_not_list_skill_when_plugin_owns_the_slash(monkeypatch):
+    from agent import skill_commands
+    from hermes_cli import plugins
+    from tui_gateway import server
+
+    monkeypatch.setattr(
+        skill_commands, "scan_skill_commands",
+        lambda: {"/zettel": {"name": "zettel", "description": "Skill zettel"}},
+    )
+    monkeypatch.setattr(
+        plugins, "get_plugin_commands",
+        lambda: {"zettel": {"description": "Plugin zettel"}},
+    )
+    monkeypatch.setattr(server, "_load_cfg", lambda: {})
+    catalog = server._methods["commands.catalog"](1, {})["result"]
+    zettel_pairs = [p for p in catalog["pairs"] if p[0] == "/zettel"]
+    assert zettel_pairs == [["/zettel", "Plugin zettel"]]
+    assert "/zettel" not in catalog.get("skills", {})

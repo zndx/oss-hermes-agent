@@ -395,7 +395,10 @@ def _catalog_skills(cat: _Catalog, skills: dict[str, dict]) -> None:
     """Append skill pairs and fill ``skills`` = ``{key: {usage, origin}}`` (every consumer ranks by them)."""
     usage, origin_of = _skill_usage_lookup()
     for k, info in sorted(_tools_mod("agent.skill_commands").scan_skill_commands().items()):
+        if k.lower() in cat.canon:
+            continue
         cat.pairs.append([k, str(info.get("description", "Skill"))])
+        cat.canon[k.lower()] = k
         name = str(info.get("name") or k.lstrip("/"))
         skills[k] = {"usage": usage(name), "origin": origin_of(name)}
 
