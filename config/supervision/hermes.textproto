@@ -13,6 +13,11 @@ engine_grpc: "127.0.0.1:50651"
 supervisor_grpc: "127.0.0.1:50661"   # resident Nautilus (loopback beside the engine)
 attrs { key: "timezone" value: "UTC" }
 attrs { key: "directives" value: "observe" }
+# AUDIT 2026-09-20: Status-healthy Gaius still failed ServerQuery; AgentRTC
+# opened empty. This spec watches Hermes Status only — it would not have seen
+# that cascade. Audit: ServerQuery content kinds, Airflow 3
+# /api/v2/monitor/health vs MISSTICK. Note:
+# gaius/docs/notes/2026-09-20/142002_nautilus_spec_audit_serverquery.md.
 
 budgets {
   recycle_k: 3
