@@ -17,8 +17,8 @@ attrs { key: "directives" value: "observe" }
 # opened empty. This spec watches Hermes Status only — it would not have seen
 # that cascade. Audit: ServerQuery content kinds, Airflow 3
 # /api/v2/monitor/health vs MISSTICK. A Theta miss / not-caught-up is a
-# persistent federated-workspace failure (not briefing); do not catch up as a
-# job. Note:
+# persistent federated-workspace failure (not briefing). Remediate with Airflow
+# backfill of Monday windows (max_active_runs=1), not DAG catchup. Note:
 # gaius/docs/scratch/2026-09-20/142002_nautilus_spec_audit_serverquery.md.
 
 budgets {
