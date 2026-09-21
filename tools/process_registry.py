@@ -180,6 +180,11 @@ def systemd_user_bus_env(base_env: Optional[Dict[str, str]] = None) -> Dict[str,
     ``os.environ`` is left unchanged.
     """
     env = dict(os.environ if base_env is None else base_env)
+    # Host systemd-run + Nix/devenv LD_LIBRARY_PATH → GLIBC mismatch; the
+    # probe then fail-closes as "user D-Bus unavailable" and auto-blocks
+    # every ready Kanban card.
+    env.pop("LD_LIBRARY_PATH", None)
+    env.pop("LD_PRELOAD", None)
     if not _IS_LINUX:
         return env
     configured = env.get("XDG_RUNTIME_DIR")

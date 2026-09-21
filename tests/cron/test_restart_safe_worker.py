@@ -102,6 +102,16 @@ def test_restart_safe_gateway_child_is_unchanged_outside_managed_gateway(monkeyp
     ) is command
 
 
+def test_systemd_user_bus_env_drops_devenv_library_path(monkeypatch):
+    import tools.process_registry as process_registry
+
+    monkeypatch.setenv("LD_LIBRARY_PATH", "/nix/store/foo/lib")
+    monkeypatch.setenv("LD_PRELOAD", "libsomething.so")
+    env = process_registry.systemd_user_bus_env({"LD_LIBRARY_PATH": "/nix/store/foo/lib", "LD_PRELOAD": "x", "HOME": "/tmp"})
+    assert "LD_LIBRARY_PATH" not in env
+    assert "LD_PRELOAD" not in env
+
+
 def test_restart_safe_gateway_child_never_probes_systemd_off_linux(monkeypatch):
     import tools.process_registry as process_registry
 
