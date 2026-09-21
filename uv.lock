@@ -14,7 +14,7 @@ resolution-markers = [
 ]
 
 [options]
-exclude-newer = "2026-09-02T18:33:24.906937523Z"
+exclude-newer = "2026-09-05T13:53:18.456114594Z"
 exclude-newer-span = "P14D"
 
 [options.exclude-newer-package]
@@ -5151,8 +5151,10 @@ dependencies = [
     { name = "holoviews" },
     { name = "matplotlib" },
     { name = "msgpack" },
+    { name = "panel" },
     { name = "protobuf" },
     { name = "pyhocon" },
+    { name = "websockets" },
 ]
 
 [package.metadata]
@@ -5165,8 +5167,10 @@ requires-dist = [
     { name = "holoviews", specifier = ">=1.18,<2" },
     { name = "matplotlib", specifier = ">=3.8,<4" },
     { name = "msgpack", specifier = ">=1.0.8,<2" },
+    { name = "panel", specifier = ">=1.3,<2" },
     { name = "protobuf", specifier = ">=6.33.5,<7" },
     { name = "pyhocon", specifier = ">=0.3.61,<0.4" },
+    { name = "websockets", specifier = ">=12,<16" },
 ]
 
 [[package]]
