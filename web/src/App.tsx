@@ -570,7 +570,10 @@ export default function App() {
               collapsed && "lg:w-14",
             )}
             style={{
-              background: "var(--component-sidebar-background)",
+              // Themes that never set a sidebar plate leave this var unset.
+              // An unset var drops the declaration and the drawer is clear,
+              // so labels sit on the page behind them (Nous Blue on a phone).
+              background: "var(--component-sidebar-background, var(--background-base))",
               clipPath: "var(--component-sidebar-clip-path)",
               borderImage: "var(--component-sidebar-border-image)",
             }}

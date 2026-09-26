@@ -60,6 +60,8 @@
   --background: color-mix(in srgb, #041c1c 100%, transparent);
   --background-base: #041c1c;
   --background-alpha: 1;
+  /* Drawer fill when a theme does not paint its own sidebar. Opaque. */
+  --component-sidebar-background: var(--background-base);
 
   /* Typography tokens — rewritten by ThemeProvider. Defaults match the
      system stack so themes that don't override look native. */
@@ -86,6 +88,11 @@
      these as `--series-input-token` / `--series-output-token`. */
   --series-input-token: #ffe6cb;
   --series-output-token: #34d399;
+}
+
+#app-sidebar,
+#chat-side-panel {
+  background-color: var(--component-sidebar-background, var(--background-base));
 }
 
 /* Theme tokens cascade into the document root so every descendant inherits
