@@ -58,12 +58,12 @@ in
 
   # https://devenv.sh/languages/
   #
-  # Hermes targets Python 3.11+ and is locked with uv. `uv sync` installs the
+  # Hermes targets Python 3.12+ (Mistral Workflows) and is locked with uv. `uv sync` installs the
   # workspace itself in editable mode, which is what puts `hermes`,
   # `hermes-agent` and `hermes-acp` on PATH pointing at this checkout.
   languages.python = {
     enable = true;
-    package = pkgs.python311;
+    package = pkgs.python312;
     # Canonical local venv: $DEVENV_STATE/venv (.devenv/state/venv).
     # Do not use a uv-downloaded .venv (UV_PYTHON_DOWNLOADS=never).
     venv.enable = true;
@@ -148,7 +148,7 @@ in
       libs="${lib.makeLibraryPath [
         openssl
         libopus
-        python311
+        python312
         stdenv.cc.cc.lib
         zlib
         libffi
