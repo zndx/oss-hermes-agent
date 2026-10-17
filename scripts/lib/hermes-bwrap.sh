@@ -28,6 +28,27 @@ hermes_bwrap_bin() {
   return 1
 }
 
+# uv-managed CPython lives under ~/.local/share/uv/python. The devenv venv's
+# python (and the hermes script shebang) is a symlink into that tree. The
+# jail mounts /nix but not $HOME, so execvp returns ENOENT unless the
+# interpreter prefix is bound. Returns the .../uv/python directory, or empty.
+hermes_bwrap_uv_python_dir() {
+  local cmd real install
+  cmd="${1:-}"
+  [[ -n "$cmd" && -e "$cmd" ]] || return 0
+  real="$(readlink -f "$cmd" 2>/dev/null || true)"
+  [[ -n "$real" ]] || return 0
+  case "$real" in
+    /nix/*|/usr/*|/bin/*) return 0 ;;
+  esac
+  # .../uv/python/cpython-X.Y.Z-.../bin/python
+  install="$(dirname "$(dirname "$(dirname "$real")")")"
+  [[ "$(basename "$install")" == "python" ]] || return 0
+  [[ "$(basename "$(dirname "$install")")" == "uv" ]] || return 0
+  [[ -d "$install" ]] || return 0
+  printf '%s\n' "$install"
+}
+
 hermes_bwrap_exec() {
   if [[ "${HERMES_BWRAP:-1}" == "0" ]]; then
     exec "$@"
@@ -135,6 +156,17 @@ hermes_bwrap_exec() {
       fi
     done
   fi
+
+  # Engine execs the venv python; the dashboard execs the hermes script,
+  # whose shebang is that same symlink. Bind the prefix for both.
+  local uv_dir seen="" cmd
+  seen="|"
+  for cmd in "${root}/.devenv/state/venv/bin/python" "$1"; do
+    uv_dir="$(hermes_bwrap_uv_python_dir "$cmd")"
+    [[ -n "$uv_dir" && "$seen" != *"|${uv_dir}|"* ]] || continue
+    seen="${seen}${uv_dir}|"
+    args+=(--ro-bind "$uv_dir" "$uv_dir")
+  done
 
   if [[ "${HERMES_BWRAP_PRINT:-0}" == "1" ]]; then
     printf 'bwrap' >&2

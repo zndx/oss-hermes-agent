@@ -153,6 +153,46 @@ class HermesBwrapTests(unittest.TestCase):
             self.assertEqual(proc.returncode, 0, proc.stderr)
             self.assertIn(str(plugins), proc.stderr)
 
+    def test_uv_managed_python_prefix_is_bound(self) -> None:
+        import tempfile
+
+        bwrap = ROOT / ".devenv/profile/bin/bwrap"
+        if not bwrap.is_file():
+            self.skipTest("devenv bubblewrap not installed yet")
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            prefix = base / "uv" / "python" / "cpython-3.14.8-linux-x86_64-gnu"
+            bindir = prefix / "bin"
+            bindir.mkdir(parents=True)
+            real_py = bindir / "python3.14"
+            real_py.write_text("#!/bin/sh\n")
+            real_py.chmod(0o755)
+            link_name = base / "uv" / "python" / "cpython-3.14-linux-x86_64-gnu"
+            link_name.symlink_to(prefix.name)
+            # The venv lives inside the checkout, which the jail already binds.
+            checkout = base / "checkout"
+            venv_bin = checkout / ".devenv" / "state" / "venv" / "bin"
+            venv_bin.mkdir(parents=True)
+            venv_py = venv_bin / "python"
+            venv_py.symlink_to(link_name / "bin" / "python3.14")
+            proc = _run(
+                f"hermes_bwrap_exec {venv_py}",
+                env={
+                    "HERMES_BWRAP": "1",
+                    "HERMES_BWRAP_PRINT": "1",
+                    "HERMES_BWRAP_BIN": str(bwrap),
+                    "HERMES_ROOT": str(checkout),
+                    "HOME": str(base / "home"),
+                    "HERMES_HOME": str(base / "home" / ".hermes"),
+                    "SIGNALS_PLUGINS": "",
+                },
+            )
+            self.assertEqual(proc.returncode, 0, proc.stderr)
+            install = base / "uv" / "python"
+            self.assertIn(f"--ro-bind {install} {install}", proc.stderr)
+            # The rest of the operator home stays out of the jail.
+            self.assertNotIn(f"--ro-bind {base / 'home'}", proc.stderr)
+
     def test_nvidia_nodes_are_bound_when_present(self) -> None:
         if not any(Path("/dev").glob("nvidia*")):
             self.skipTest("no nvidia device nodes")
