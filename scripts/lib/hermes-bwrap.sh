@@ -135,6 +135,11 @@ hermes_bwrap_exec() {
   if [[ -n "$sp" && -d "$sp" ]]; then
     args+=(--bind "$sp" "$sp")
   fi
+  # Quiet preprint extracts run Gaius docling. The tree is outside this checkout.
+  local gaius="${GAIUS_ROOT:-}"
+  if [[ -n "$gaius" && -d "$gaius" ]]; then
+    args+=(--bind "$gaius" "$gaius")
+  fi
 
   # install.sh developer checkouts symlink $HERMES_HOME/plugins/<name> at a
   # tree outside the jail (this checkout + ~/.hermes). Follow those links.

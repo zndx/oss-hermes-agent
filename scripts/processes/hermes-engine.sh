@@ -19,6 +19,9 @@ export HERMES_ENGINE_TARGET="${HERMES_ENGINE_TARGET:-127.0.0.1:50651}"
 export HF_HOME="${HF_HOME:-/raid/cache/huggingface}"
 export SIGNALS_ENGINE_TARGET="${SIGNALS_ENGINE_TARGET:-127.0.0.1:50551}"
 export SIGNALS_PLUGINS="${SIGNALS_PLUGINS:-$HOME/local/src/wxs/signals-plugins}"
+if [[ -z "${GAIUS_ROOT:-}" && -d "$HOME/local/src/zndx/gaius" ]]; then
+  export GAIUS_ROOT="$HOME/local/src/zndx/gaius"
+fi
 export PATH="${ROOT}/.devenv/profile/bin:${PATH:-/usr/bin}"
 export PYTHONPATH=""
 # Nix profile python3.11 site-packages must not mix with the venv's av/aiortc
