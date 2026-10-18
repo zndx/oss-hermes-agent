@@ -37,6 +37,14 @@ if [[ -z "${HERMES_ENGINE_IGNORE_DOTENV:-}" && -f "$ROOT/.env" ]]; then
   source "$ROOT/.env"
   set +a
 fi
+# Development system-one calls TypeSafe. The key lives in the operator
+# dotenv, not in this repo. Export the name only; do not print the value.
+if [[ -z "${TYPESAFE_API_KEY:-}" && -f "${HOME}/local/.env" ]]; then
+  line="$(grep -m1 '^TYPESAFE_API_KEY=' "${HOME}/local/.env" || true)"
+  if [[ -n "$line" ]]; then
+    export "$line"
+  fi
+fi
 
 # shellcheck source=../lib/hermes-bwrap.sh
 source "$ROOT/scripts/lib/hermes-bwrap.sh"
