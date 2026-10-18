@@ -146,10 +146,12 @@ in
           done
         done
       fi
+      # The cargo ELF NEEDs libpython3.11.so.1.0 (pyo3 pin in
+      # scripts/rebuild-moshi-server.sh). python314 does not provide that SONAME.
       libs="${lib.makeLibraryPath [
         openssl
         libopus
-        python314
+        python311
         stdenv.cc.cc.lib
         zlib
         libffi
