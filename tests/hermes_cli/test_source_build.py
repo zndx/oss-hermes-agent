@@ -20,6 +20,19 @@ import pm
 from pm.package import Runner
 
 
+def test_node_prefers_the_host_libstdcxx(tmp_path):
+    from hermes_cli.source_build import prefer_host_libstdcxx
+
+    lib = tmp_path / "host-lib"
+    lib.mkdir()
+    env = prefer_host_libstdcxx(
+        {"LD_LIBRARY_PATH": f"/nix/store/gcc-lib/lib:{lib}"},
+        system_lib=str(lib),
+    )
+    assert env["LD_LIBRARY_PATH"].split(":")[0] == str(lib)
+    assert "/nix/store/gcc-lib/lib" in env["LD_LIBRARY_PATH"]
+
+
 def use_host_node_as_pm_node(monkeypatch):
     """Freshness reads run only under PM's recorded Node; stand the host's node in for it."""
     node, real = Path(shutil.which("node")), pm.installed_package

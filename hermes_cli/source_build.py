@@ -7,6 +7,24 @@ import subprocess
 import sys
 
 
+_HOST_LIB = "/usr/lib/x86_64-linux-gnu"
+
+
+def prefer_host_libstdcxx(env: dict, system_lib: str = _HOST_LIB) -> dict:
+    """Prefer the host libstdc++ over a Nix gcc lib that needs a newer glibc.
+
+    Devenv puts gcc 15's libstdc++ on LD_LIBRARY_PATH. That library requires
+    GLIBC_2.38. Ubuntu 22.04's libc is 2.35, so Node dies before it runs.
+    The host C++ library is ABI-compatible with this Node and this libc.
+    """
+    if not system_lib or not os.path.isdir(system_lib):
+        return env
+    out = dict(env)
+    rest = [part for part in out.get("LD_LIBRARY_PATH", "").split(":") if part and part != system_lib]
+    out["LD_LIBRARY_PATH"] = ":".join([system_lib, *rest])
+    return out
+
+
 def source_product_current(project_root: Path, product: str, out: Path) -> bool:
     """Read the compiler's receipt without acquiring tools or dependencies."""
     from pm import env_for, installed_package
@@ -14,7 +32,7 @@ def source_product_current(project_root: Path, product: str, out: Path) -> bool:
     installed = installed_package("node")
     if installed is None or installed.binary is None:
         return False  # Only PM's Node may run the receipt reader; never the user's PATH copy.
-    node, env = str(installed.binary), env_for("node")
+    node, env = str(installed.binary), prefer_host_libstdcxx(env_for("node"))
     try:
         result = subprocess.run(
             [node, str(project_root / "scripts/build/freshness.mjs"),
@@ -60,6 +78,7 @@ def run_in_custody(project_root: Path, command: list, label: str, **kwargs):
 
 
 def run_source_script(project_root: Path, script: str, *args: str, env: dict, label: str) -> None:
+    env = prefer_host_libstdcxx(env)
     command = [shutil.which("node", path=env["PATH"]), str(project_root / script), *args]
     # npm's deprecation warnings are the loudest lines and never actionable
     # here; they still land in the failure tail.
