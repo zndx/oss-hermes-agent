@@ -163,10 +163,14 @@ hermes_bwrap_exec() {
   fi
 
   # Engine execs the venv python; the dashboard execs the hermes script,
-  # whose shebang is that same symlink. Bind the prefix for both.
-  local uv_dir seen="" cmd
+  # whose shebang is that same symlink. The signals-preprints worker is
+  # started inside this jail and its venv python is a second uv prefix.
+  local uv_dir seen="" cmd preprints=""
+  if [[ -n "${SIGNALS_PLUGINS:-}" ]]; then
+    preprints="${SIGNALS_PLUGINS}/.devenv/signals-preprints-venv/bin/python"
+  fi
   seen="|"
-  for cmd in "${root}/.devenv/state/venv/bin/python" "$1"; do
+  for cmd in "${root}/.devenv/state/venv/bin/python" "$1" "$preprints"; do
     uv_dir="$(hermes_bwrap_uv_python_dir "$cmd")"
     [[ -n "$uv_dir" && "$seen" != *"|${uv_dir}|"* ]] || continue
     seen="${seen}${uv_dir}|"

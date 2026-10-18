@@ -193,6 +193,41 @@ class HermesBwrapTests(unittest.TestCase):
             # The rest of the operator home stays out of the jail.
             self.assertNotIn(f"--ro-bind {base / 'home'}", proc.stderr)
 
+    def test_preprints_worker_python_prefix_is_bound(self) -> None:
+        import tempfile
+
+        bwrap = ROOT / ".devenv/profile/bin/bwrap"
+        if not bwrap.is_file():
+            self.skipTest("devenv bubblewrap not installed yet")
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            prefix = base / "uv" / "python" / "cpython-3.14.8-linux-x86_64-gnu"
+            (prefix / "bin").mkdir(parents=True)
+            real_py = prefix / "bin" / "python3.14"
+            real_py.write_text("#!/bin/sh\n")
+            real_py.chmod(0o755)
+            plugins = base / "signals-plugins"
+            venv_bin = plugins / ".devenv" / "signals-preprints-venv" / "bin"
+            venv_bin.mkdir(parents=True)
+            (venv_bin / "python").symlink_to(real_py)
+            checkout = base / "checkout"
+            checkout.mkdir()
+            proc = _run(
+                "hermes_bwrap_exec /bin/true",
+                env={
+                    "HERMES_BWRAP": "1",
+                    "HERMES_BWRAP_PRINT": "1",
+                    "HERMES_BWRAP_BIN": str(bwrap),
+                    "HERMES_ROOT": str(checkout),
+                    "HOME": str(base / "home"),
+                    "HERMES_HOME": str(base / "home" / ".hermes"),
+                    "SIGNALS_PLUGINS": str(plugins),
+                },
+            )
+            self.assertEqual(proc.returncode, 0, proc.stderr)
+            install = base / "uv" / "python"
+            self.assertIn(f"--ro-bind {install} {install}", proc.stderr)
+
     def test_nvidia_nodes_are_bound_when_present(self) -> None:
         if not any(Path("/dev").glob("nvidia*")):
             self.skipTest("no nvidia device nodes")
