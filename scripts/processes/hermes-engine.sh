@@ -45,6 +45,15 @@ if [[ -z "${TYPESAFE_API_KEY:-}" && -f "${HOME}/local/.env" ]]; then
     export "$line"
   fi
 fi
+# The engine process does not load HERMES_HOME/.env. Mistral extracts and
+# workflows read that file; export the name so children see it too.
+profile_env="${HERMES_HOME:-$HOME/.hermes}/.env"
+if [[ -z "${MISTRAL_API_KEY:-}" && -f "$profile_env" ]]; then
+  line="$(grep -m1 '^MISTRAL_API_KEY=' "$profile_env" || true)"
+  if [[ -n "$line" ]]; then
+    export "$line"
+  fi
+fi
 
 # shellcheck source=../lib/hermes-bwrap.sh
 source "$ROOT/scripts/lib/hermes-bwrap.sh"
