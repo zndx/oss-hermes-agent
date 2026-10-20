@@ -119,6 +119,13 @@ in
     libopus
     # CUDA 12.4 nvcc rejects stdenv gcc 15. Rebuild script uses this.
     gcc13
+    # moshi-server 0.6.4 embeds PyO3 0.23, which does not link CPython 3.14.
+    # Hermes itself is python314. This name is only the moshi/TTS interpreter,
+    # so it does not shadow profile python3. The profile roots it against nix GC.
+    (runCommand "moshi-python" { } ''
+      mkdir -p "$out/bin"
+      ln -s "${python311}/bin/python3.11" "$out/bin/moshi-python"
+    '')
     # Inverse of gaius tinybox-ninja.sh: cargo moshi-server is a Nix-linked
     # ELF (PT_INTERP = nix glibc). Never put host /lib on its
     # LD_LIBRARY_PATH (that loads Ubuntu 2.35 libc and dies on GLIBC_2.39).
@@ -146,8 +153,7 @@ in
           done
         done
       fi
-      # The cargo ELF NEEDs libpython3.11.so.1.0 (pyo3 pin in
-      # scripts/rebuild-moshi-server.sh). python314 does not provide that SONAME.
+      # Same python311 as moshi-python. python314 has libpython3.14, not this SONAME.
       libs="${lib.makeLibraryPath [
         openssl
         libopus

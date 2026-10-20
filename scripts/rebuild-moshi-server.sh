@@ -51,16 +51,26 @@ export CUDAHOSTCXX="$cxx_path"
 export CMAKE_CUDA_HOST_COMPILER="$cc_path"
 export NVCC_PREPEND_FLAGS="-ccbin ${cc_path}"
 # sentencepiece-sys 0.11.3 omits <cstdint> (gcc 15 error); gcc 13 is enough.
-# pyo3 follows PATH python; devenv venv is 3.12 but the wrap and tts-venv
-# are python3.11. Pin so the ELF NEEDs libpython3.11.so (in wrap libs).
+# PyO3 0.23 (moshi-server 0.6.4) does not link CPython 3.14. Pin the profile
+# interpreter moshi-python (pkgs.python311), not the Hermes venv on PATH.
 py311=""
-wrap="${ROOT}/.devenv/profile/bin/moshi-server"
-if [[ -f "$wrap" ]] && [[ "$(cat "$wrap")" =~ (/nix/store/[^:[:space:]]+-python3-3\.11\.[^/]+)/lib ]]; then
-  cand="${BASH_REMATCH[1]}/bin/python3.11"
-  [[ -x "$cand" ]] && py311="$cand"
+moshi_py="${ROOT}/.devenv/profile/bin/moshi-python"
+if [[ -x "$moshi_py" ]]; then
+  py311="$(readlink -f "$moshi_py")"
 fi
-if [[ -z "$py311" ]]; then
-  echo "DENY: nix python3.11 with libpython3.11.so missing (wrap libs=)" >&2
+if [[ -z "$py311" || ! -x "$py311" ]]; then
+  wrap="${ROOT}/.devenv/profile/bin/moshi-server"
+  if [[ -f "$wrap" ]] && [[ "$(cat "$wrap")" =~ (/nix/store/[^:[:space:]]+-python3-3\.11\.[^/]+)/lib ]]; then
+    cand="${BASH_REMATCH[1]}/bin/python3.11"
+    [[ -x "$cand" ]] && py311="$cand"
+  fi
+fi
+libdir=""
+if [[ -n "$py311" ]]; then
+  libdir="$(dirname "$(dirname "$py311")")/lib"
+fi
+if [[ -z "$py311" || ! -e "${libdir}/libpython3.11.so.1.0" ]]; then
+  echo "DENY: moshi-python missing libpython3.11.so.1.0 (rebuild the devenv profile)" >&2
   exit 1
 fi
 export PYO3_PYTHON="$py311"
