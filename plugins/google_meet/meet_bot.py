@@ -473,9 +473,28 @@ def run_bot() -> int:
         context_args["storage_state"] = cfg.auth_state
     try:
         with sync_playwright() as pw:
+            from hermes_cli.chromium_hold import (
+                checked_playwright_chromium,
+                refuse_chromium_156,
+            )
+
+            try:
+                exe = chromium_executable()
+                if exe:
+                    refuse_chromium_156(exe)
+                else:
+                    exe = checked_playwright_chromium(pw)
+            except RuntimeError as e:
+                state.set(error=str(e), exited=True)
+                sys.stderr.write(f"{e}\n")
+                if rt["bridge"]:
+                    rt["bridge"].teardown()
+                return 3
             browser = pw.chromium.launch(
-                channel="chromium", executable_path=chromium_executable(),
-                headless=not cfg.headed, args=chrome_args,
+                channel="chromium",
+                executable_path=exe,
+                headless=not cfg.headed,
+                args=chrome_args,
             )
             context = browser.new_context(**context_args)
             page = context.new_page()

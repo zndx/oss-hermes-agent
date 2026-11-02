@@ -69,8 +69,18 @@ def _launch_browser_probe(timeout: float) -> tuple:
     except ImportError:
         return (False, "playwright not installed")
     with sync_playwright() as p:
+        from hermes_cli.chromium_hold import (
+            checked_playwright_chromium,
+            refuse_chromium_156,
+        )
+
+        exe = chromium_executable()
+        if exe:
+            refuse_chromium_156(exe)
+        else:
+            exe = checked_playwright_chromium(p)
         browser = p.chromium.launch(
-            channel="chromium", executable_path=chromium_executable(),
+            channel="chromium", executable_path=exe,
             headless=True, timeout=timeout * 1000,
         )
         try:

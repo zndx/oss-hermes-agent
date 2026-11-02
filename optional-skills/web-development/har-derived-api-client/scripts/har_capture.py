@@ -48,7 +48,13 @@ def main() -> int:
     args = ap.parse_args()
 
     with sync_playwright() as p:
-        browser = p.chromium.launch(channel="chromium", headless=not args.headed)
+        from hermes_cli.chromium_hold import checked_playwright_chromium
+
+        browser = p.chromium.launch(
+            channel="chromium",
+            executable_path=checked_playwright_chromium(p),
+            headless=not args.headed,
+        )
         context = browser.new_context(
             record_har_path=args.har_path,
             record_har_content="embed",  # keep response bodies in the HAR
