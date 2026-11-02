@@ -186,6 +186,10 @@ def _agent_browser_command_env(socket_dir: str) -> dict[str, str]:
 
     executable = chromium_executable()
     if executable:
+        # Major 156 must not become the agent browser. --version does not navigate.
+        from hermes_cli.chromium_hold import refuse_chromium_156
+
+        refuse_chromium_156(executable)
         env["AGENT_BROWSER_EXECUTABLE_PATH"] = executable
     env["AGENT_BROWSER_SOCKET_DIR"] = socket_dir
     if "AGENT_BROWSER_IDLE_TIMEOUT_MS" not in env:

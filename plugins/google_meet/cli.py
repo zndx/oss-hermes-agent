@@ -205,8 +205,18 @@ def _cmd_auth() -> int:
           f"saving storage state to: {path}")
     try:
         with sync_playwright() as pw:
+            from hermes_cli.chromium_hold import (
+                checked_playwright_chromium,
+                refuse_chromium_156,
+            )
+
+            exe = chromium_executable()
+            if exe:
+                refuse_chromium_156(exe)
+            else:
+                exe = checked_playwright_chromium(pw)
             browser = pw.chromium.launch(
-                channel="chromium", executable_path=chromium_executable(), headless=False,
+                channel="chromium", executable_path=exe, headless=False,
             )
             context = browser.new_context()
             context.new_page().goto("https://accounts.google.com/", wait_until="domcontentloaded")
